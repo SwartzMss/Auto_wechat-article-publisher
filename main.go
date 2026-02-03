@@ -11,6 +11,7 @@ import (
     "net/http"
     "os"
     "path/filepath"
+    "regexp"
     "strings"
     "time"
 
@@ -20,6 +21,7 @@ import (
 const (
     accessTokenURL = "https://api.weixin.qq.com/cgi-bin/token"
     uploadImageURL = "https://api.weixin.qq.com/cgi-bin/material/add_material"
+    uploadImgURL   = "https://api.weixin.qq.com/cgi-bin/media/uploadimg"
     addDraftURL    = "https://api.weixin.qq.com/cgi-bin/draft/add"
 )
 
@@ -36,6 +38,12 @@ type accessTokenResp struct {
 
 type uploadImageResp struct {
     MediaID string `json:"media_id"`
+    ErrCode int    `json:"errcode"`
+    ErrMsg  string `json:"errmsg"`
+}
+
+type uploadImgResp struct {
+    URL     string `json:"url"`
     ErrCode int    `json:"errcode"`
     ErrMsg  string `json:"errmsg"`
 }
@@ -148,12 +156,100 @@ func uploadImage(client *http.Client, accessToken, imagePath string) (string, er
     return data.MediaID, nil
 }
 
+func uploadContentImage(client *http.Client, accessToken, imagePath string) (string, error) {
+    file, err := os.Open(imagePath)
+    if err != nil {
+        return "", err
+    }
+    defer file.Close()
+
+    var body bytes.Buffer
+    writer := multipart.NewWriter(&body)
+    part, err := writer.CreateFormFile("media", filepath.Base(imagePath))
+    if err != nil {
+        return "", err
+    }
+    if _, err := io.Copy(part, file); err != nil {
+        return "", err
+    }
+    if err := writer.Close(); err != nil {
+        return "", err
+    }
+
+    req, err := http.NewRequest("POST", uploadImgURL, &body)
+    if err != nil {
+        return "", err
+    }
+    req.Header.Set("Content-Type", writer.FormDataContentType())
+    q := req.URL.Query()
+    q.Set("access_token", accessToken)
+    req.URL.RawQuery = q.Encode()
+
+    resp, err := client.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+
+    var data uploadImgResp
+    if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+        return "", err
+    }
+    if data.URL == "" {
+        return "", fmt.Errorf("failed to upload content image: %d %s", data.ErrCode, data.ErrMsg)
+    }
+    return data.URL, nil
+}
+
 func mdToHTML(md string) (string, error) {
     var buf bytes.Buffer
     if err := goldmark.Convert([]byte(md), &buf); err != nil {
         return "", err
     }
     return buf.String(), nil
+}
+
+func replaceMarkdownImages(client *http.Client, accessToken, md string, mdPath string) (string, error) {
+    imgPattern := regexp.MustCompile(`!\[[^\]]*\]\(([^)]+)\)`)
+    matches := imgPattern.FindAllStringSubmatchIndex(md, -1)
+    if len(matches) == 0 {
+        return md, nil
+    }
+
+    baseDir := filepath.Dir(mdPath)
+    var builder strings.Builder
+    last := 0
+    for _, match := range matches {
+        if len(match) < 4 {
+            continue
+        }
+        start := match[2]
+        end := match[3]
+        builder.WriteString(md[last:start])
+        imgRef := strings.TrimSpace(md[start:end])
+        if strings.HasPrefix(imgRef, "http://") || strings.HasPrefix(imgRef, "https://") {
+            builder.WriteString(imgRef)
+            last = end
+            continue
+        }
+        if strings.HasPrefix(imgRef, "data:") {
+            builder.WriteString(imgRef)
+            last = end
+            continue
+        }
+        localPath := imgRef
+        if !filepath.IsAbs(localPath) {
+            localPath = filepath.Join(baseDir, imgRef)
+        }
+        uploadedURL, err := uploadContentImage(client, accessToken, localPath)
+        if err != nil {
+            return "", err
+        }
+        builder.WriteString(uploadedURL)
+        last = end
+    }
+    builder.WriteString(md[last:])
+    return builder.String(), nil
 }
 
 func defaultDigest(md string, limit int) string {
@@ -223,12 +319,6 @@ func main() {
         os.Exit(1)
     }
 
-    contentHTML, err := mdToHTML(string(mdBytes))
-    if err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        os.Exit(1)
-    }
-
     finalDigest := *digest
     if finalDigest == "" {
         finalDigest = defaultDigest(string(mdBytes), 120)
@@ -236,6 +326,18 @@ func main() {
 
     client := &http.Client{Timeout: 60 * time.Second}
     accessToken, err := getAccessToken(client, cfg)
+    if err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+
+    mdWithImages, err := replaceMarkdownImages(client, accessToken, string(mdBytes), *mdPath)
+    if err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+
+    contentHTML, err := mdToHTML(mdWithImages)
     if err != nil {
         fmt.Fprintln(os.Stderr, err)
         os.Exit(1)
