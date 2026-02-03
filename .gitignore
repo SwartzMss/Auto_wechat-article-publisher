@@ -1,0 +1,14 @@
+config.json
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.cover
+coverage.out
+bin/
+build/
+dist/
+tmp/
