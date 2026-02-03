@@ -29,9 +29,20 @@ go run . \
   --digest "摘要"
 ```
 
+示例（使用 samples 目录）：
+
+```bash
+go run . \
+  --config config.json \
+  --md samples/article.md \
+  --title "测试文章" \
+  --cover samples/cover.jpg
+```
+
 成功后会输出草稿 `media_id`。
 
 ## 注意事项
 - 草稿接口要求 `thumb_media_id`，此处会先上传封面图片再创建草稿。
 - 公众号接口权限与调用次数受微信平台限制。
+- 如果开启了 IP 白名单，运行机器的公网 IP 必须加入公众号平台白名单，否则无法获取 `access_token`。
 - 文章中的图片需能被微信端访问，后续可扩展为自动上传内容图片并替换链接。
