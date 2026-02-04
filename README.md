@@ -35,7 +35,6 @@ go run . --serve --config config/config.json --addr :8080
   - 读取 `config/deploy.env` + `config/config.json`
   - 同步前端 dist，生成 nginx + systemd 配置并启动
   - 必填：`DOMAIN`、`SSL_CERT_PATH`、`SSL_KEY_PATH`
-  - 未显式设置 `BIND_ADDR` 时自动取 `config.json` 的 `server_addr`
 
 ## 开发
 - 前端：`cd server/web && npm install && npm run dev`；打包用 `npm run build`
