@@ -5,7 +5,7 @@
 ## 功能
 - Markdown → 微信兼容 HTML，自动上传封面与正文图片，创建草稿。
 - LLM 生成/修订稿件（OpenAI 或 DeepSeek 兼容接口）。
-- 内置前端：填写需求、查看/复制 Markdown，触发生成与发布。
+- 提供 Web 界面填写需求、实时查看/复制稿件并触发生成与发布。
 
 ## 配置
 1. 复制 `config/config.example.json` 到 `config/config.json` 并填写：
