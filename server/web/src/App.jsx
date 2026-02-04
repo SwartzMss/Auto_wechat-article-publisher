@@ -19,6 +19,7 @@ function App() {
   const [history, setHistory] = useState([]);
   const [status, setStatus] = useState('等待生成...');
   const [loading, setLoading] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   const payload = useMemo(() => ({
     topic: spec.topic.trim(),
@@ -29,35 +30,38 @@ function App() {
     constraints: spec.constraints.split('\n').filter(Boolean),
   }), [spec]);
 
-  const handleCreate = async () => {
+  const handleSubmit = async () => {
     setLoading(true);
-    setStatus('生成中...');
-    const res = await fetch('/api/sessions', {
+    const isNew = !sessionId;
+    setStatus(isNew ? '生成中...' : '修订中...');
+    const res = await fetch(isNew ? '/api/sessions' : `/api/sessions/${sessionId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(isNew ? payload : { comment: comment.trim() }),
     });
     if (!res.ok) return handleError(res);
     const data = await res.json();
     applySession(data);
-    setStatus('首稿生成完成');
+    setStatus(isNew ? '首稿生成完成' : '修订完成');
     setLoading(false);
   };
 
-  const handleRevise = async () => {
-    if (!sessionId) return;
-    setLoading(true);
-    setStatus('修订中...');
-    const res = await fetch(`/api/sessions/${sessionId}`, {
+  const handlePublish = async () => {
+    if (!sessionId || !draft.markdown) {
+      setStatus('请先生成稿件');
+      return;
+    }
+    setPublishing(true);
+    setStatus('发布中...');
+    const res = await fetch('/api/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comment: comment.trim() }),
+      body: JSON.stringify({ session_id: sessionId }),
     });
-    if (!res.ok) return handleError(res);
+    if (!res.ok) return handleError(res, true);
     const data = await res.json();
-    applySession(data);
-    setStatus('修订完成');
-    setLoading(false);
+    setStatus(`发布成功：${data.media_id || '草稿已创建'}`);
+    setPublishing(false);
   };
 
   const applySession = (data) => {
@@ -77,10 +81,11 @@ function App() {
     setHistory(normalizedHistory);
   };
 
-  const handleError = async (res) => {
+  const handleError = async (res, isPublish = false) => {
     const text = await res.text();
     setStatus(`错误: ${res.status} ${text}`);
-    setLoading(false);
+    if (isPublish) setPublishing(false);
+    else setLoading(false);
   };
 
   const copyMd = async () => {
@@ -135,13 +140,16 @@ function App() {
             <div className="actions stacked">
               <input className="compact" value={spec.words} onChange={e => setSpec({ ...spec, words: e.target.value })} placeholder="如 1200" />
             </div>
-            <label>额外约束（每行一条）</label>
-            <textarea value={spec.constraints} onChange={e => setSpec({ ...spec, constraints: e.target.value })} placeholder={'禁止使用第一人称\n每节加小结'} />
-            <div className="actions spaced">
-              <button className="btn btn-primary" onClick={handleCreate} disabled={loading}>生成首稿</button>
-              <button className="btn btn-secondary" onClick={handleRevise} disabled={loading || !sessionId}>基于评论修订</button>
-              <button className="btn btn-ghost" onClick={() => { setSpec(defaultSpec); setComment(''); }}>重置</button>
-            </div>
+          <label>额外约束（每行一条）</label>
+          <textarea value={spec.constraints} onChange={e => setSpec({ ...spec, constraints: e.target.value })} placeholder={'禁止使用第一人称\n每节加小结'} />
+          <div className="actions spaced">
+            <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+              {sessionId ? '基于评论更新' : '生成首稿'}
+            </button>
+            <button className="btn btn-ghost" onClick={() => { setSpec(defaultSpec); setComment(''); setSessionId(null); setDraft({ markdown: '' }); setHistory([]); setStatus('等待生成...'); }} disabled={loading}>
+              重置
+            </button>
+          </div>
             <label>评论 / 追加要求</label>
             <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="例：加强案例部分，补充图片占位说明" />
           </section>
@@ -150,6 +158,7 @@ function App() {
             <div className="section-title status-row">
               <div className={`status-pill status-${statusTone}`}>{status}</div>
               <div className="actions">
+                <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing}>发布到草稿箱</button>
                 <button className="btn btn-ghost" onClick={copyMd} disabled={!draft.markdown}>复制 Markdown</button>
               </div>
             </div>

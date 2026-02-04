@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,8 @@ var embeddedStatic embed.FS
 type Server struct {
 	genAgent *generator.Agent
 	pubCfg   publisher.Config
+	pub      *publisher.Publisher
+	pubMu    sync.Mutex
 	store    *sessionStore
 	staticFS http.Handler
 }
@@ -61,6 +64,7 @@ func New(genAgent *generator.Agent, pubCfg publisher.Config) (*Server, error) {
 	return &Server{
 		genAgent: genAgent,
 		pubCfg:   pubCfg,
+		pub:      nil,
 		store:    newStore(),
 		staticFS: http.FileServer(http.FS(sub)),
 	}, nil
@@ -70,6 +74,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/sessions", s.handleSessionCreate)
 	mux.HandleFunc("/api/sessions/", s.handleSessionByID)
+	mux.HandleFunc("/api/publish", s.handlePublish)
 	mux.Handle("/", s.staticHandler())
 	return corsMiddleware(logMiddleware(mux))
 }
@@ -110,6 +115,20 @@ type sessionResp struct {
 
 type reviseReq struct {
 	Comment string `json:"comment"`
+}
+
+type publishReq struct {
+	SessionID string `json:"session_id"`
+	CoverPath string `json:"cover_path,omitempty"`
+	Author    string `json:"author,omitempty"`
+	Title     string `json:"title,omitempty"`
+	Digest    string `json:"digest,omitempty"`
+}
+
+type publishResp struct {
+	MediaID   string `json:"media_id"`
+	Title     string `json:"title"`
+	CoverPath string `json:"cover_path"`
 }
 
 func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
@@ -177,6 +196,94 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req publishReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.SessionID == "" {
+		http.Error(w, "session_id required", http.StatusBadRequest)
+		return
+	}
+	sess, ok := s.store.get(req.SessionID)
+	if !ok {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+	if sess.Draft.Markdown == "" {
+		http.Error(w, "draft is empty; generate first", http.StatusBadRequest)
+		return
+	}
+
+	// Resolve cover path (required by WeChat). Use provided path or fallback to samples/cover.jpg if exists.
+	coverPath := strings.TrimSpace(req.CoverPath)
+	if coverPath == "" {
+		if _, err := os.Stat("samples/cover.jpg"); err == nil {
+			coverPath = "samples/cover.jpg"
+		} else {
+			http.Error(w, "cover_path required", http.StatusBadRequest)
+			return
+		}
+	}
+	if _, err := os.Stat(coverPath); err != nil {
+		http.Error(w, "cover_path not found: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		if sess.Draft.Title != "" {
+			title = sess.Draft.Title
+		} else {
+			title = sess.Spec.Topic
+		}
+	}
+	digest := strings.TrimSpace(req.Digest)
+	if digest == "" {
+		digest = sess.Draft.Digest
+	}
+
+	tmp, err := os.CreateTemp("", "draft-*.md")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.WriteString(sess.Draft.Markdown); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = tmp.Close()
+
+	pub, err := s.ensurePublisher()
+	if err != nil {
+		http.Error(w, "publisher init failed: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+
+	mediaID, err := pub.PublishDraft(ctx, publisher.PublishParams{
+		MarkdownPath: tmp.Name(),
+		Title:        title,
+		CoverPath:    coverPath,
+		Author:       req.Author,
+		Digest:       digest,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	writeJSON(w, publishResp{MediaID: mediaID, Title: title, CoverPath: coverPath})
+}
+
 // --- Helpers ---
 
 func newSessionID() string {
@@ -232,4 +339,18 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 	n, err := r.ResponseWriter.Write(b)
 	r.bytes += n
 	return n, err
+}
+
+func (s *Server) ensurePublisher() (*publisher.Publisher, error) {
+	s.pubMu.Lock()
+	defer s.pubMu.Unlock()
+	if s.pub != nil {
+		return s.pub, nil
+	}
+	p, err := publisher.New(s.pubCfg, nil, false, log.Default())
+	if err != nil {
+		return nil, err
+	}
+	s.pub = p
+	return s.pub, nil
 }
