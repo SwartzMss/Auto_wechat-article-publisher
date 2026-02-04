@@ -1,4 +1,11 @@
 {
   "app_id": "YOUR_APP_ID",
-  "app_secret": "YOUR_APP_SECRET"
+  "app_secret": "YOUR_APP_SECRET",
+  "server_addr": ":8080",
+  "llm": {
+    "provider": "openai",          // 可选：openai / deepseek / custom
+    "model": "gpt-4.1-mini",       // 指定模型名称
+    "api_key_env": "OPENAI_API_KEY", // 从该环境变量读取密钥
+    "base_url": ""                 // 自建网关或代理时填；为空用默认
+  }
 }
