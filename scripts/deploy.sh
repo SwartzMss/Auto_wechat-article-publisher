@@ -157,7 +157,7 @@ server {
     }
 
     # Serve uploaded images via backend so it can read ./uploads
-    location /uploads/ {
+    location ^~ /uploads/ {
         proxy_pass ${PROXY_PASS};
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
