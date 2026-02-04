@@ -13,3 +13,5 @@ bin/
 build/
 dist/
 tmp/
+node_modules/
+server/web/node_modules/
