@@ -1,6 +1,6 @@
 # Auto WeChat Article Publisher
 
-生成并发布公众号草稿的单进程工具，附带 React 前端。
+生成并发布公众号草稿的单进程工具。
 
 ## 功能
 - Markdown → 微信兼容 HTML，自动上传封面与正文图片，创建草稿。
