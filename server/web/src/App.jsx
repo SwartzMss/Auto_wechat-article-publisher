@@ -126,6 +126,11 @@ function App() {
   };
 
   const handleCoverSelect = async (e) => {
+    if (!sessionId) {
+      setStatus('请先生成草稿再上传封面');
+      e.target.value = '';
+      return;
+    }
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
@@ -143,6 +148,11 @@ function App() {
   };
 
   const handleBodySelect = async (e) => {
+    if (!sessionId) {
+      setStatus('请先生成草稿再上传图片');
+      e.target.value = '';
+      return;
+    }
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     setUploading(true);
@@ -164,6 +174,8 @@ function App() {
     }
   };
 
+  const editorRef = useRef(null);
+
   const insertImageIntoMarkdown = (img) => {
     if (!img?.path) return;
     insertSnippet(`![正文图片](${img.path})`);
@@ -172,6 +184,19 @@ function App() {
   const insertSnippet = (snippet) => {
     setDraft((prev) => {
       const md = prev.markdown || '';
+      const editor = editorRef.current;
+      if (editor) {
+        const start = editor.selectionStart ?? md.length;
+        const end = editor.selectionEnd ?? md.length;
+        const next =
+          md.slice(0, start) + snippet + (md[start - 1] === '\n' ? '' : '\n') + md.slice(end);
+        // 让光标落在插入内容之后
+        requestAnimationFrame(() => {
+          const pos = start + snippet.length + 1;
+          editor.selectionStart = editor.selectionEnd = pos;
+        });
+        return { ...prev, markdown: next };
+      }
       const next = md ? `${md}\n\n${snippet}\n` : `${snippet}\n`;
       return { ...prev, markdown: next };
     });
@@ -300,12 +325,10 @@ function App() {
             <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="例：加强案例部分，补充图片占位说明" />
           </section>
 
-          <section className="card card-ghost col-8">
-            <div className="section-title status-row">
-              <div className={`status-pill status-${statusTone}`} title={status}>{clippedStatus}</div>
-              <div className="actions">
-                <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing || uploading}>发布到草稿箱</button>
-              </div>
+          <section className="card card-ghost col-4">
+            <div className="section-title">
+              <span className="dot" />
+              素材管理
             </div>
             <div className="media-panel">
               <div className="media-card">
@@ -339,8 +362,8 @@ function App() {
                   正文图片
                 </div>
                 <div className="actions spaced">
-                  <button className="btn btn-primary" onClick={() => bodyInputRef.current?.click()} disabled={uploading}>上传正文图片</button>
-                  <div className="meta">上传后可一键插入 Markdown</div>
+                  <button className="btn btn-primary" onClick={() => bodyInputRef.current?.click()} disabled={!sessionId || uploading}>上传正文图片</button>
+                  <div className="meta">{sessionId ? '上传后可拖拽或一键插入' : '需先生成草稿再上传'}</div>
                 </div>
                 <input ref={bodyInputRef} type="file" accept="image/*" multiple hidden onChange={handleBodySelect} />
                 {bodyImages.length ? (
@@ -367,9 +390,37 @@ function App() {
                     ))}
                   </div>
                 ) : (
-                  <div className="empty-inline">还没有正文图片，上传后在 Markdown 中添加占位。</div>
+                  <div className="empty-inline">{sessionId ? '还没有正文图片' : '生成草稿后再上传图片'}</div>
                 )}
               </div>
+            </div>
+          </section>
+
+          <section className="card card-ghost col-4">
+            <div className="section-title status-row">
+              <div className={`status-pill status-${statusTone}`} title={status}>{clippedStatus}</div>
+              <div className="actions">
+                <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing || uploading}>发布到草稿箱</button>
+              </div>
+            </div>
+
+            <div className="editor-card">
+              <div className="section-title">
+                <span className="dot" />
+                正文编辑（可定位插图）
+              </div>
+              <textarea
+                ref={editorRef}
+                className="md-editor"
+                value={draft.markdown || ''}
+                onChange={e => setDraft({ ...draft, markdown: e.target.value })}
+                placeholder="点击定位光标，可粘贴或插入图片 Markdown。"
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const snippet = e.dataTransfer.getData('text/plain');
+                  if (snippet) insertSnippet(snippet);
+                }}
+              />
             </div>
 
             {draft.markdown ? (
@@ -381,7 +432,7 @@ function App() {
                   const snippet = e.dataTransfer.getData('text/plain');
                   if (snippet) insertSnippet(snippet);
                 }}
-                title="可将上方图片拖拽到此处自动插入 Markdown"
+                title="可将右侧图片拖拽到此处自动插入 Markdown；精确位置请在上方文本框定位后插入"
                 dangerouslySetInnerHTML={{ __html: previewHTML }}
               />
             ) : (
