@@ -60,7 +60,8 @@ function App() {
     });
     if (!res.ok) return handleError(res, true);
     const data = await res.json();
-    setStatus(`发布成功：${data.media_id || '草稿已创建'}`);
+    // 不在前端显示 media_id，防止误泄露；仅提示成功。
+    setStatus('发布成功');
     setPublishing(false);
   };
 

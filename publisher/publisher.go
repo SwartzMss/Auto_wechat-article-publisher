@@ -160,10 +160,8 @@ func (p *Publisher) PublishDraft(ctx context.Context, params PublishParams) (str
 		return "", err
 	}
 
-	finalDigest := params.Digest
-	if finalDigest == "" {
-		finalDigest = defaultDigest(string(mdBytes), 120)
-	}
+	// 摘要不再使用，直接发送空字符串，避免长度限制错误。
+	p.infof("Digest skipped; sending empty digest to WeChat")
 
 	mdWithImages, err := replaceMarkdownImages(ctx, p.client, p.accessToken, string(mdBytes), params.MarkdownPath)
 	if err != nil {
@@ -189,19 +187,23 @@ func (p *Publisher) PublishDraft(ctx context.Context, params PublishParams) (str
 	art := article{
 		Title:              params.Title,
 		Author:             params.Author,
-		Digest:             finalDigest,
+		Digest:             "",
 		Content:            contentHTML,
 		ThumbMediaID:       thumbMediaID,
 		NeedOpenComment:    0,
 		OnlyFansCanComment: 0,
 	}
 
+	p.logger.Printf("[publish] addDraft title=%q cover_media=%s", art.Title, art.ThumbMediaID)
+
 	mediaID, err := addDraft(ctx, p.client, p.accessToken, art)
 	if err != nil {
+		p.logger.Printf("[publish] addDraft failed: %v", err)
 		return "", err
 	}
 	p.infof("Draft created successfully: media_id=%s", mediaID)
-	p.logger.Printf("[publish] success media_id=%s title=%q", mediaID, params.Title)
+	// 成功日志不再输出完整 media_id，避免暴露。
+	p.logger.Printf("[publish] success title=%q", params.Title)
 
 	return mediaID, nil
 }
@@ -448,14 +450,6 @@ func replaceMarkdownImages(ctx context.Context, client *http.Client, accessToken
 	return builder.String(), nil
 }
 
-func defaultDigest(md string, limit int) string {
-	compact := strings.Fields(md)
-	joined := strings.Join(compact, " ")
-	if len(joined) <= limit {
-		return joined
-	}
-	return joined[:limit]
-}
 
 func addDraft(ctx context.Context, client *http.Client, accessToken string, art article) (string, error) {
 	payload := addDraftPayload{Articles: []article{art}}

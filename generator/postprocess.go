@@ -14,10 +14,8 @@ func PostProcess(raw string, spec Spec) (Draft, error) {
 	}
 
 	title := extractTitle(md)
-	digest := extractDigest(md)
-	if digest == "" {
-		digest = defaultDigest(md, 120)
-	}
+	// 留空摘要；微信字段可选，避免因自动生成过长触发 45004。
+	digest := ""
 
 	return Draft{
 		Title:    title,
@@ -53,13 +51,4 @@ func extractDigest(md string) string {
 		break
 	}
 	return b.String()
-}
-
-func defaultDigest(md string, limit int) string {
-	compact := strings.Fields(md)
-	joined := strings.Join(compact, " ")
-	if len(joined) <= limit {
-		return joined
-	}
-	return joined[:limit]
 }
