@@ -353,12 +353,15 @@ function App() {
                   <div className="media-list">
                     {bodyImages.map((img, idx) => (
                       <div className="media-item" key={`${img.path}-${idx}`}>
-                        <img src={img.url} alt={img.filename || `img-${idx}`} />
+                        <img
+                          src={img.url}
+                          alt={img.filename || `img-${idx}`}
+                          onClick={() => window.open(img.url, '_blank', 'noopener')}
+                        />
                         <div className="media-meta">
                           <div className="upload-name">{img.filename || '正文图片'}</div>
                           <div className="actions">
                             <button className="btn btn-ghost compact-btn" onClick={() => insertImageIntoMarkdown(img)}>插入正文</button>
-                            <a className="btn btn-ghost compact-btn" href={img.url} target="_blank" rel="noreferrer">预览</a>
                           </div>
                         </div>
                       </div>

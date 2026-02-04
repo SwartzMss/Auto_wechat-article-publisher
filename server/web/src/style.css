@@ -353,11 +353,13 @@ textarea { min-height: 132px; resize: vertical; }
   gap: 8px;
 }
 .media-item img {
-  width: 64px;
-  height: 64px;
+  width: 100px;
+  height: 100px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.25);
 }
 .media-meta { display: flex; flex-direction: column; gap: 6px; }
 .compact-btn { min-width: 96px; padding: 8px 10px; font-size: 13px; }
