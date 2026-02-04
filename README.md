@@ -17,7 +17,7 @@
   - `SSL_CERT_PATH`
   - `SSL_KEY_PATH`
   - 若使用非 443 端口，设置 `HTTPS_PORT`
-  - 可选 `LOG_FILE`（默认 `./logs/app.log`，部署脚本会自动创建）
+  - 可选 `LOG_FILE`（默认 `./logs/app.log`，部署脚本会转为绝对路径并创建）
   - 可选 `LOGROTATE_ENABLE`（默认 1，生成每周轮转、保留 8 份的 logrotate 配置）
 
 ## 使用
@@ -42,4 +42,4 @@ go run . --serve --config config/config.json --addr :8080
 - 前端：`cd server/web && npm install && npm run dev`；打包用 `npm run build`
 - 测试：`GOCACHE=/tmp/gocache go test ./...`
 - 公众号如有 IP 白名单，需将运行机公网 IP 加入。
-- 日志：部署后可用 `journalctl -u auto-wechat.service -f` 查看；文件日志默认写入 `./logs/app.log`（可在 `config/deploy.env` 中改 `LOG_FILE`），若启用 `LOGROTATE_ENABLE` 将自动生成每周轮转的 logrotate 配置。
+- 日志：部署后可用 `journalctl -u auto-wechat.service -f` 查看；文件日志默认写入 `./logs/app.log`（转换为绝对路径，可在 `config/deploy.env` 中改 `LOG_FILE`），若启用 `LOGROTATE_ENABLE` 将自动生成每周轮转的 logrotate 配置。

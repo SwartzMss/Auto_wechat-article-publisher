@@ -49,6 +49,7 @@ NGINX_SITE_NAME="${NGINX_SITE_NAME:-auto-wechat}"
 NGINX_CONF_PATH="${NGINX_CONF_PATH:-/etc/nginx/sites-available/${NGINX_SITE_NAME}.conf}"
 NGINX_ENABLED_PATH="${NGINX_ENABLED_PATH:-/etc/nginx/sites-enabled/${NGINX_SITE_NAME}.conf}"
 LOG_FILE="${LOG_FILE:-$ROOT/logs/app.log}"
+LOG_FILE_ABS="$(cd -- "$(dirname "$LOG_FILE")" && pwd)/$(basename "$LOG_FILE")"
 LOGROTATE_ENABLE="${LOGROTATE_ENABLE:-1}"
 
 ensure_root
@@ -108,9 +109,9 @@ PROXY_PASS="http://${BACKEND_HOST}:${BACKEND_PORT}/"
 ensure_paths() {
   mkdir -p "$STATIC_ROOT"
   chown -R "$STATIC_OWNER":"$STATIC_GROUP" "$STATIC_ROOT" || true
-  mkdir -p "$(dirname "$LOG_FILE")"
-  touch "$LOG_FILE" || true
-  chown "$STATIC_OWNER":"$STATIC_GROUP" "$LOG_FILE" || true
+  mkdir -p "$(dirname "$LOG_FILE_ABS")"
+  touch "$LOG_FILE_ABS" || true
+  chown "$STATIC_OWNER":"$STATIC_GROUP" "$LOG_FILE_ABS" || true
 }
 
 sync_frontend() {
@@ -189,8 +190,8 @@ WorkingDirectory=${ROOT}
 ExecStart=${BINARY} --serve --config ${CONFIG_FILE} ${BIND_ADDR:+--addr ${BIND_ADDR}}
 Restart=always
 RestartSec=5
-StandardOutput=append:${LOG_FILE}
-StandardError=append:${LOG_FILE}
+StandardOutput=append:${LOG_FILE_ABS}
+StandardError=append:${LOG_FILE_ABS}
 
 [Install]
 WantedBy=multi-user.target
@@ -208,7 +209,7 @@ write_logrotate() {
   local target="/etc/logrotate.d/${SERVICE_NAME%.*}"
   log "Writing logrotate config -> $target"
   cat >"$target" <<EOF
-${LOG_FILE} {
+${LOG_FILE_ABS} {
     weekly
     rotate 8
     compress
