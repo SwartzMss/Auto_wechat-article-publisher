@@ -5,10 +5,13 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -27,33 +30,145 @@ type Server struct {
 	pubMu    sync.Mutex
 	store    *sessionStore
 	staticFS http.Handler
+	uploadDir string
 }
 
 type sessionStore struct {
 	mu       sync.Mutex
-	sessions map[string]*generator.Session
+	sessions map[string]*sessionEntry
+	ttl      time.Duration
+	ticker   *time.Ticker
+	done     chan struct{}
+}
+
+type sessionEntry struct {
+	sess      *generator.Session
+	expiresAt time.Time
+	uploads   []string
 }
 
 func newStore() *sessionStore {
-	return &sessionStore{sessions: make(map[string]*generator.Session)}
+	return &sessionStore{
+		sessions: make(map[string]*sessionEntry),
+		ttl:      5 * time.Minute,
+		done:     make(chan struct{}),
+	}
+}
+
+// startJanitor launches a background goroutine to purge expired sessions periodically.
+// Caller should ensure this is called once.
+func (s *sessionStore) startJanitor(interval time.Duration) {
+	s.ticker = time.NewTicker(interval)
+	go func() {
+		for {
+			select {
+			case <-s.ticker.C:
+				s.purgeExpired()
+			case <-s.done:
+				return
+			}
+		}
+	}()
+}
+
+func (s *sessionStore) stopJanitor() {
+	if s.ticker != nil {
+		s.ticker.Stop()
+	}
+	close(s.done)
 }
 
 func (s *sessionStore) set(id string, sess *generator.Session) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.sessions[id] = sess
+	s.sessions[id] = &sessionEntry{sess: sess, expiresAt: time.Now().Add(s.ttl)}
 }
 
 func (s *sessionStore) get(id string) (*generator.Session, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	sess, ok := s.sessions[id]
-	return sess, ok
+	s.purgeLocked()
+	entry, ok := s.sessions[id]
+	if !ok {
+		return nil, false
+	}
+	entry.expiresAt = time.Now().Add(s.ttl) // extend on access
+	return entry.sess, true
+}
+
+func (s *sessionStore) heartbeat(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.purgeLocked()
+	entry, ok := s.sessions[id]
+	if !ok {
+		return false
+	}
+	entry.expiresAt = time.Now().Add(s.ttl)
+	return true
+}
+
+func (s *sessionStore) addUpload(id, path string) {
+	if id == "" || path == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.sessions[id]
+	if !ok {
+		return
+	}
+	entry.uploads = append(entry.uploads, path)
+}
+
+func (s *sessionStore) delete(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deleteLocked(id)
+}
+
+func (s *sessionStore) purgeExpired() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.purgeLocked()
+}
+
+func (s *sessionStore) purgeLocked() {
+	now := time.Now()
+	for id, entry := range s.sessions {
+		if entry.expiresAt.Before(now) {
+			s.cleanupUploads(entry.uploads)
+			delete(s.sessions, id)
+		}
+	}
+}
+
+func (s *sessionStore) deleteLocked(id string) {
+	entry, ok := s.sessions[id]
+	if !ok {
+		return
+	}
+	s.cleanupUploads(entry.uploads)
+	delete(s.sessions, id)
+}
+
+func (s *sessionStore) cleanupUploads(paths []string) {
+	for _, p := range paths {
+		_ = os.Remove(p)
+	}
 }
 
 func New(genAgent *generator.Agent, pubCfg publisher.Config) (*Server, error) {
 	if genAgent == nil {
 		return nil, errors.New("generator agent required")
+	}
+
+	store := newStore()
+	store.startJanitor(1 * time.Minute)
+
+	uploadDir := "uploads"
+	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create upload dir: %w", err)
 	}
 
 	sub, err := fs.Sub(embeddedStatic, "web/dist")
@@ -65,8 +180,9 @@ func New(genAgent *generator.Agent, pubCfg publisher.Config) (*Server, error) {
 		genAgent: genAgent,
 		pubCfg:   pubCfg,
 		pub:      nil,
-		store:    newStore(),
+		store:    store,
 		staticFS: http.FileServer(http.FS(sub)),
+		uploadDir: uploadDir,
 	}, nil
 }
 
@@ -74,7 +190,10 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/sessions", s.handleSessionCreate)
 	mux.HandleFunc("/api/sessions/", s.handleSessionByID)
+	mux.HandleFunc("/api/heartbeat/", s.handleHeartbeat)
 	mux.HandleFunc("/api/publish", s.handlePublish)
+	mux.HandleFunc("/api/uploads", s.handleUpload)
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(s.uploadDir))))
 	mux.Handle("/", s.staticHandler())
 	return corsMiddleware(logMiddleware(mux))
 }
@@ -168,16 +287,21 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	sess, ok := s.store.get(id)
-	if !ok {
-		http.Error(w, "session not found", http.StatusNotFound)
-		return
-	}
 
 	switch r.Method {
 	case http.MethodGet:
+		sess, ok := s.store.get(id)
+		if !ok {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
 		writeJSON(w, sessionResp{SessionID: id, Draft: sess.Draft, History: sess.History})
 	case http.MethodPost:
+		sess, ok := s.store.get(id)
+		if !ok {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
 		var req reviseReq
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -191,9 +315,31 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, sessionResp{SessionID: id, Draft: draft, History: sess.History})
+	case http.MethodDelete:
+		s.store.delete(id)
+		w.WriteHeader(http.StatusNoContent)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// handleHeartbeat extends a session's TTL; if not found returns 404.
+// Path: /api/heartbeat/{id}
+func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/heartbeat/")
+	if id == "" {
+		http.NotFound(w, r)
+		return
+	}
+	if ok := s.store.heartbeat(id); !ok {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
@@ -353,4 +499,75 @@ func (s *Server) ensurePublisher() (*publisher.Publisher, error) {
 	}
 	s.pub = p
 	return s.pub, nil
+}
+
+type uploadResp struct {
+	Path     string `json:"path"`
+	URL      string `json:"url"`
+	Filename string `json:"filename"`
+	Size     int64  `json:"size"`
+	Usage    string `json:"usage,omitempty"`
+}
+
+func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseMultipartForm(25 << 20); err != nil { // 25 MB
+		http.Error(w, "parse form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "file is required: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	sessID := strings.TrimSpace(r.FormValue("session_id"))
+	usage := strings.TrimSpace(r.FormValue("usage"))
+	orig := sanitizeFilename(header.Filename)
+	if orig == "" {
+		orig = "upload"
+	}
+	ext := filepath.Ext(orig)
+	base := strings.TrimSuffix(orig, ext)
+	if base == "" {
+		base = "upload"
+	}
+	filename := fmt.Sprintf("%s_%d%s", base, time.Now().UnixNano(), ext)
+	path := filepath.Join(s.uploadDir, filename)
+
+	dst, err := os.Create(path)
+	if err != nil {
+		http.Error(w, "save file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	n, err := io.Copy(dst, file)
+	if err != nil {
+		http.Error(w, "write file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, uploadResp{
+		Path:     path,
+		URL:      "/uploads/" + filename,
+		Filename: header.Filename,
+		Size:     n,
+		Usage:    usage,
+	})
+
+	if sessID != "" {
+		s.store.addUpload(sessID, path)
+	}
+}
+
+func sanitizeFilename(name string) string {
+	name = filepath.Base(name)
+	name = strings.ReplaceAll(name, " ", "_")
+	name = strings.ReplaceAll(name, "..", "")
+	return name
 }

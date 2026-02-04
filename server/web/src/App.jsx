@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
 import './style.css';
 
@@ -20,6 +20,14 @@ function App() {
   const [status, setStatus] = useState('等待生成...');
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [cover, setCover] = useState({ path: '', url: '', filename: '' });
+  const [bodyImages, setBodyImages] = useState([]);
+  const [uploading, setUploading] = useState(false);
+
+  const coverInputRef = useRef(null);
+  const bodyInputRef = useRef(null);
+  const markdownRef = useRef(null);
+  const heartbeatRef = useRef(null);
 
   const payload = useMemo(() => ({
     topic: spec.topic.trim(),
@@ -56,13 +64,117 @@ function App() {
     const res = await fetch('/api/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionId }),
+      body: JSON.stringify({
+        session_id: sessionId,
+        cover_path: cover.path || undefined,
+        title: draft.title,
+        digest: draft.digest,
+      }),
     });
     if (!res.ok) return handleError(res, true);
     const data = await res.json();
     // 不在前端显示 media_id，防止误泄露；仅提示成功。
     setStatus('发布成功');
     setPublishing(false);
+  };
+
+  const deleteSession = async () => {
+    if (!sessionId) return;
+    try {
+      await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('delete session failed', err);
+    }
+  };
+
+  // Heartbeat: keep session alive while page is open
+  useEffect(() => {
+    if (!sessionId) {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+      return;
+    }
+    const sendBeat = async () => {
+      try {
+        await fetch(`/api/heartbeat/${sessionId}`, { method: 'POST' });
+      } catch (err) {
+        console.debug('heartbeat failed', err);
+      }
+    };
+    sendBeat();
+    heartbeatRef.current = setInterval(sendBeat, 60_000); // 60s
+    return () => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+    };
+  }, [sessionId]);
+
+  const uploadFile = async (file, usage = 'content') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('usage', usage);
+    if (sessionId) formData.append('session_id', sessionId);
+    const res = await fetch('/api/uploads', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const msg = await res.text();
+      throw new Error(msg || '上传失败');
+    }
+    return res.json();
+  };
+
+  const handleCoverSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setStatus('封面上传中...');
+    try {
+      const data = await uploadFile(file, 'cover');
+      setCover({ path: data.path, url: data.url, filename: data.filename });
+      setStatus('封面已上传');
+    } catch (err) {
+      setStatus(`错误: ${err.message}`);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleBodySelect = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploading(true);
+    setStatus('正文图片上传中...');
+    try {
+      const results = [];
+      for (const f of files) {
+        // 逐个上传，避免过多并发
+        const data = await uploadFile(f, 'content');
+        results.push({ path: data.path, url: data.url, filename: data.filename });
+      }
+      setBodyImages((prev) => [...prev, ...results]);
+      setStatus(`已上传 ${files.length} 张正文图片`);
+    } catch (err) {
+      setStatus(`错误: ${err.message}`);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const insertImageIntoMarkdown = (img) => {
+    if (!img?.path) return;
+    const cursor = markdownRef.current?.selectionStart ?? (draft.markdown || '').length;
+    setDraft((prev) => {
+      const md = prev.markdown || '';
+      const snippet = `\n\n![${img.filename || 'image'}](${img.path})\n`;
+      const next = md.slice(0, cursor) + snippet + md.slice(cursor);
+      return { ...prev, markdown: next };
+    });
+    setStatus('已插入图片到 Markdown');
   };
 
   const applySession = (data) => {
@@ -84,6 +196,9 @@ function App() {
     setSessionId(data.session_id);
     setDraft(normalizedDraft);
     setHistory(normalizedHistory);
+    if (normalizedDraft.markdown) {
+      setStatus((prev) => prev.includes('错误') ? prev : '草稿已就绪，可编辑插图');
+    }
   };
 
   const handleError = async (res, isPublish = false) => {
@@ -105,6 +220,17 @@ function App() {
     if (status.includes('完成') || status.includes('已复制')) return 'success';
     return 'neutral';
   }, [status, loading]);
+
+  const previewHTML = useMemo(() => {
+    const uploadMap = [...bodyImages, cover].filter(Boolean);
+    let md = draft.markdown || '';
+    uploadMap.forEach((u) => {
+      if (u.path && u.url) {
+        md = md.split(u.path).join(u.url);
+      }
+    });
+    return marked.parse(md || '');
+  }, [draft.markdown, bodyImages, cover]);
 
   const renderHistory = () => (history || []).map((t, idx) => {
     const ts = t.created_at ? new Date(t.created_at).toLocaleString() : `#${idx + 1}`;
@@ -145,16 +271,30 @@ function App() {
             <div className="actions stacked">
               <input className="compact" value={spec.words} onChange={e => setSpec({ ...spec, words: e.target.value })} placeholder="如 1200" />
             </div>
-          <label>额外约束（每行一条）</label>
-          <textarea value={spec.constraints} onChange={e => setSpec({ ...spec, constraints: e.target.value })} placeholder={'禁止使用第一人称\n每节加小结'} />
-          <div className="actions spaced">
-            <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
-              {sessionId ? '基于评论更新' : '生成首稿'}
-            </button>
-            <button className="btn btn-ghost" onClick={() => { setSpec(defaultSpec); setComment(''); setSessionId(null); setDraft({ markdown: '' }); setHistory([]); setStatus('等待生成...'); }} disabled={loading}>
-              重置
-            </button>
-          </div>
+            <label>额外约束（每行一条）</label>
+            <textarea value={spec.constraints} onChange={e => setSpec({ ...spec, constraints: e.target.value })} placeholder={'禁止使用第一人称\n每节加小结'} />
+            <div className="actions spaced">
+              <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+                {sessionId ? '基于评论更新' : '生成首稿'}
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  deleteSession();
+                  setSpec(defaultSpec);
+                  setComment('');
+                  setSessionId(null);
+                  setDraft({ markdown: '' });
+                  setHistory([]);
+                  setCover({ path: '', url: '', filename: '' });
+                  setBodyImages([]);
+                  setStatus('等待生成...');
+                }}
+                disabled={loading}
+              >
+                重置
+              </button>
+            </div>
             <label>评论 / 追加要求</label>
             <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="例：加强案例部分，补充图片占位说明" />
           </section>
@@ -163,12 +303,83 @@ function App() {
             <div className="section-title status-row">
               <div className={`status-pill status-${statusTone}`}>{status}</div>
               <div className="actions">
-                <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing}>发布到草稿箱</button>
+                <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing || uploading}>发布到草稿箱</button>
                 <button className="btn btn-ghost" onClick={copyMd} disabled={!draft.markdown}>复制 Markdown</button>
               </div>
             </div>
+            <div className="media-panel">
+              <div className="media-card">
+                <div className="section-title">
+                  <span className="dot" />
+                  封面图
+                </div>
+                <div className="upload-tile card-click" onClick={() => coverInputRef.current?.click()}>
+                  {cover.url ? (
+                    <>
+                      <img src={cover.url} alt="cover" className="cover-preview" />
+                      <div className="upload-meta">
+                        <div className="upload-name">{cover.filename || '封面已上传'}</div>
+                        <div className="upload-hint">点击可重新选择</div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="upload-empty">
+                      <div className="empty-icon">🖼️</div>
+                      <div className="empty-title">上传封面</div>
+                      <div className="upload-hint">支持 JPG / PNG，点击选择</div>
+                    </div>
+                  )}
+                </div>
+                <input ref={coverInputRef} type="file" accept="image/*" onChange={handleCoverSelect} hidden />
+              </div>
+
+              <div className="media-card">
+                <div className="section-title">
+                  <span className="dot" />
+                  正文图片
+                </div>
+                <div className="actions spaced">
+                  <button className="btn btn-primary" onClick={() => bodyInputRef.current?.click()} disabled={uploading}>上传正文图片</button>
+                  <div className="meta">上传后可一键插入 Markdown</div>
+                </div>
+                <input ref={bodyInputRef} type="file" accept="image/*" multiple hidden onChange={handleBodySelect} />
+                {bodyImages.length ? (
+                  <div className="media-list">
+                    {bodyImages.map((img, idx) => (
+                      <div className="media-item" key={`${img.path}-${idx}`}>
+                        <img src={img.url} alt={img.filename || `img-${idx}`} />
+                        <div className="media-meta">
+                          <div className="upload-name">{img.filename || '正文图片'}</div>
+                          <div className="actions">
+                            <button className="btn btn-ghost compact-btn" onClick={() => insertImageIntoMarkdown(img)}>插入正文</button>
+                            <a className="btn btn-ghost compact-btn" href={img.url} target="_blank" rel="noreferrer">预览</a>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-inline">还没有正文图片，上传后在 Markdown 中添加占位。</div>
+                )}
+              </div>
+            </div>
+
+            <div className="editor-card">
+              <div className="section-title">
+                <span className="dot" />
+                正文 Markdown 可编辑
+              </div>
+              <textarea
+                ref={markdownRef}
+                className="md-editor"
+                value={draft.markdown || ''}
+                onChange={e => setDraft({ ...draft, markdown: e.target.value })}
+                placeholder="生成的正文会出现在这里，您可以粘贴或插入图片 Markdown 链接。"
+              />
+            </div>
+
             {draft.markdown ? (
-              <div className="preview markdown-body" dangerouslySetInnerHTML={{ __html: marked.parse(draft.markdown || '') }} />
+              <div className="preview markdown-body" dangerouslySetInnerHTML={{ __html: previewHTML }} />
             ) : (
               <div className="empty-state">
                 <div className="empty-icon">✦</div>

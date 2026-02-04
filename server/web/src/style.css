@@ -288,3 +288,87 @@ textarea { min-height: 132px; resize: vertical; }
 .empty-icon { font-size: 20px; margin-bottom: 8px; }
 .empty-title { font-weight: 800; margin-bottom: 4px; }
 .empty-desc { font-size: 13px; color: #9fb3ff; }
+
+.media-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 12px;
+}
+@media (max-width: 960px) {
+  .media-panel { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+}
+
+.media-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255,255,255,0.03);
+}
+
+.upload-tile {
+  width: 100%;
+  min-height: 140px;
+  border: 1px dashed rgba(154, 213, 255, 0.35);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-start;
+  background: rgba(255, 255, 255, 0.02);
+  transition: border 0.2s ease, background 0.2s ease;
+}
+.upload-tile:hover { border-color: rgba(255, 255, 255, 0.6); background: rgba(255,255,255,0.04); }
+.cover-preview {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+}
+.upload-meta { display: flex; flex-direction: column; gap: 4px; }
+.upload-name { font-weight: 800; color: #fefbff; }
+.upload-hint { color: #9ad5ff; font-size: 13px; }
+.upload-empty { text-align: left; }
+
+.media-list {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 6px 2px;
+}
+.media-item {
+  min-width: 180px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+}
+.media-item img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.media-meta { display: flex; flex-direction: column; gap: 6px; }
+.compact-btn { min-width: 96px; padding: 8px 10px; font-size: 13px; }
+
+.editor-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.md-editor {
+  min-height: 180px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(154, 213, 255, 0.25);
+  color: #e8ecff;
+}
+.md-editor:focus { border-color: #9ad5ff; box-shadow: 0 0 0 3px rgba(154, 213, 255, 0.18); }
