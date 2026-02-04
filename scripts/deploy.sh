@@ -48,7 +48,8 @@ SSL_KEY_PATH="${SSL_KEY_PATH:-}"
 NGINX_SITE_NAME="${NGINX_SITE_NAME:-auto-wechat}"
 NGINX_CONF_PATH="${NGINX_CONF_PATH:-/etc/nginx/sites-available/${NGINX_SITE_NAME}.conf}"
 NGINX_ENABLED_PATH="${NGINX_ENABLED_PATH:-/etc/nginx/sites-enabled/${NGINX_SITE_NAME}.conf}"
-LOG_FILE="${LOG_FILE:-/var/log/auto-wechat/app.log}"
+LOG_FILE="${LOG_FILE:-$ROOT/logs/app.log}"
+LOGROTATE_ENABLE="${LOGROTATE_ENABLE:-1}"
 
 ensure_root
 require_cmd systemctl
@@ -198,6 +199,26 @@ EOF
   systemctl enable --now "$SERVICE_NAME"
 }
 
+write_logrotate() {
+  [ "${LOGROTATE_ENABLE}" = "1" ] || return 0
+  if ! command -v logrotate >/dev/null 2>&1; then
+    log "logrotate not found; skipping log rotation config"
+    return 0
+  fi
+  local target="/etc/logrotate.d/${SERVICE_NAME%.*}"
+  log "Writing logrotate config -> $target"
+  cat >"$target" <<EOF
+${LOG_FILE} {
+    weekly
+    rotate 8
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+}
+
 reload_nginx() {
   log "Reloading nginx"
   systemctl reload nginx
@@ -208,6 +229,7 @@ deploy() {
   sync_frontend
   write_nginx
   write_systemd
+  write_logrotate
   reload_nginx
   log "Deployment complete. Check: systemctl status $SERVICE_NAME"
 }
