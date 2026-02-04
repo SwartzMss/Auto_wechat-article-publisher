@@ -170,7 +170,7 @@ func New(genAgent *generator.Agent, pubCfg publisher.Config) (*Server, error) {
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create upload dir: %w", err)
 	}
-	cleanupUploadsOlderThan(uploadDir, 24*time.Hour)
+	cleanupUploadsAll(uploadDir)
 	cleanupTempDrafts(24 * time.Hour)
 
 	sub, err := fs.Sub(embeddedStatic, "web/dist")
@@ -575,7 +575,24 @@ func sanitizeFilename(name string) string {
 }
 
 // cleanupUploadsOlderThan removes files in dir older than maxAge; best-effort.
-func cleanupUploadsOlderThan(dir string, maxAge time.Duration) {
+func cleanupUploadsAll(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Printf("[cleanup] read uploads dir failed: %v", err)
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		fp := filepath.Join(dir, e.Name())
+		if err := os.Remove(fp); err == nil {
+			log.Printf("[cleanup] removed upload %s", fp)
+		}
+	}
+}
+
+func cleanupUploadsOlderThan(dir string, maxAge time.Duration) { // nolint:deadcode
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		log.Printf("[cleanup] read uploads dir failed: %v", err)
