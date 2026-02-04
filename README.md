@@ -9,7 +9,7 @@
 - **Web 服务**：`--serve` 启动；静态资源由 Go embed，自带占位 `dist`，可用 `npm run build` 生成正式产物。
 
 ## 配置
-复制 `config.example.json` 为 `config.json`，填写：
+复制 `config/config.example.json` 为 `config/config.json`，填写：
 ```json
 {
   "app_id": "YOUR_APP_ID",
@@ -30,7 +30,7 @@
 ### 1) CLI 发布（原有能力）
 ```bash
 go run . \
-  --config config.json \
+  --config config/config.json \
   --md samples/article.md \
   --title "测试文章" \
   --cover samples/cover.jpg \
@@ -40,8 +40,8 @@ go run . \
 
 ### 2) 启动 Web 服务
 ```bash
-go run . --serve --config config.json --addr :8080
-# 或使用 config.json 中的 server_addr
+go run . --serve --config config/config.json --addr :8080
+# 或使用 config/config.json 中的 server_addr
 ```
 浏览器访问 `http://localhost:8080`，使用 React 界面创建 Session、评论修订、预览 Markdown。
 

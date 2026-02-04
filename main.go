@@ -16,7 +16,7 @@ import (
 var verbose bool
 
 func main() {
-	configPath := flag.String("config", "config.json", "path to config.json")
+    configPath := flag.String("config", "config/config.json", "path to config.json")
 	mdPath := flag.String("md", "", "path to markdown file")
 	title := flag.String("title", "", "article title")
 	cover := flag.String("cover", "", "path to cover image")
