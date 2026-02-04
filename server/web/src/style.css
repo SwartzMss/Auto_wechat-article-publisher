@@ -85,9 +85,11 @@ body { margin: 0; padding: 0; min-height: 100vh; background: transparent; }
   .grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
 }
 .col-4 { grid-column: span 4; }
+.col-3 { grid-column: span 3; }
+.col-5 { grid-column: span 5; }
 .col-8 { grid-column: span 8; }
 @media (max-width: 960px) {
-  .col-4, .col-8 { grid-column: span 1; }
+  .col-3, .col-4, .col-5, .col-8 { grid-column: span 1; }
 }
 
 .card {

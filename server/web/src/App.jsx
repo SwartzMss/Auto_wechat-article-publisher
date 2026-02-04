@@ -325,7 +325,7 @@ function App() {
             <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="例：加强案例部分，补充图片占位说明" />
           </section>
 
-          <section className="card card-ghost col-4">
+          <section className="card card-ghost col-3">
             <div className="section-title">
               <span className="dot" />
               素材管理
@@ -396,7 +396,7 @@ function App() {
             </div>
           </section>
 
-          <section className="card card-ghost col-4">
+          <section className="card card-ghost col-5">
             <div className="section-title status-row">
               <div className={`status-pill status-${statusTone}`} title={status}>{clippedStatus}</div>
               <div className="actions">
