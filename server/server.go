@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -190,13 +191,30 @@ func writeJSON(w http.ResponseWriter, v any) {
 func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		// minimal log to stdout
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+
 		path := r.URL.Path
 		if path == "" {
 			path = "/"
 		}
-		// Use DefaultLogger
-		_ = time.Since(start)
+		log.Printf("[HTTP] %s %s -> %d (%dB) in %v", r.Method, path, rec.status, rec.bytes, time.Since(start))
 	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (r *statusRecorder) WriteHeader(statusCode int) {
+	r.status = statusCode
+	r.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	n, err := r.ResponseWriter.Write(b)
+	r.bytes += n
+	return n, err
 }

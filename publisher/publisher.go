@@ -153,6 +153,8 @@ func (p *Publisher) PublishDraft(ctx context.Context, params PublishParams) (str
 		return "", errors.New("markdown path, title, and cover path are required")
 	}
 
+	p.logger.Printf("[publish] start title=%q md=%s cover=%s", params.Title, params.MarkdownPath, params.CoverPath)
+
 	mdBytes, err := os.ReadFile(params.MarkdownPath)
 	if err != nil {
 		return "", err
@@ -199,6 +201,7 @@ func (p *Publisher) PublishDraft(ctx context.Context, params PublishParams) (str
 		return "", err
 	}
 	p.infof("Draft created successfully: media_id=%s", mediaID)
+	p.logger.Printf("[publish] success media_id=%s title=%q", mediaID, params.Title)
 
 	return mediaID, nil
 }

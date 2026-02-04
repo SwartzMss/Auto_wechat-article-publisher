@@ -16,7 +16,8 @@ import (
 var verbose bool
 
 func main() {
-    configPath := flag.String("config", "config/config.json", "path to config.json")
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	configPath := flag.String("config", "config/config.json", "path to config.json")
 	mdPath := flag.String("md", "", "path to markdown file")
 	title := flag.String("title", "", "article title")
 	cover := flag.String("cover", "", "path to cover image")
@@ -74,7 +75,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	p, err := publisher.New(cfg, nil, verbose, nil)
+	p, err := publisher.New(cfg, nil, verbose, log.Default())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -87,12 +88,15 @@ func main() {
 		Digest:       *digest,
 	}
 
-	mediaID, err := p.PublishDraft(context.Background(), params)
+	ctx := context.Background()
+	log.Printf("[cli] publishing title=%q md=%s cover=%s", params.Title, params.MarkdownPath, params.CoverPath)
+	mediaID, err := p.PublishDraft(ctx, params)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
+	log.Printf("[cli] publish done media_id=%s", mediaID)
 	fmt.Println(mediaID)
 }
 
