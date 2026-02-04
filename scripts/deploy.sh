@@ -51,6 +51,7 @@ NGINX_ENABLED_PATH="${NGINX_ENABLED_PATH:-/etc/nginx/sites-enabled/${NGINX_SITE_
 LOG_FILE="${LOG_FILE:-$ROOT/logs/app.log}"
 LOG_FILE_ABS="$(cd -- "$(dirname "$LOG_FILE")" && pwd)/$(basename "$LOG_FILE")"
 LOGROTATE_ENABLE="${LOGROTATE_ENABLE:-1}"
+CLIENT_MAX_BODY_SIZE="${CLIENT_MAX_BODY_SIZE:-25m}"
 
 ensure_root
 require_cmd systemctl
@@ -140,12 +141,23 @@ server {
     ssl_certificate_key ${SSL_KEY_PATH};
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
+    client_max_body_size ${CLIENT_MAX_BODY_SIZE};
 
     root ${STATIC_ROOT};
     index index.html;
     try_files \$uri \$uri/ /index.html;
 
     location /api/ {
+        proxy_pass ${PROXY_PASS};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_http_version 1.1;
+    }
+
+    # Serve uploaded images via backend so it can read ./uploads
+    location /uploads/ {
         proxy_pass ${PROXY_PASS};
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
