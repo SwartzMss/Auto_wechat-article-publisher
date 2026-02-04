@@ -3,9 +3,9 @@
 面向公众号的文案生成与草稿发布工具，支持一键生成、修订并推送到草稿箱。
 
 ## 功能
-- Markdown → 微信兼容 HTML，自动上传封面与正文图片，创建草稿。
-- LLM 生成/修订稿件（OpenAI 或 DeepSeek 兼容接口）。
-- 提供 Web 界面填写需求、实时查看/复制稿件并触发生成与发布。
+- 需求驱动的 LLM 生成与多轮修订（OpenAI / DeepSeek 兼容）。
+- 实时 Markdown 预览，可手动编辑、复制。
+- 一键发布到公众号草稿箱：上传封面/正文图片并转换为微信兼容 HTML。
 
 ## 配置
 1. 复制 `config/config.example.json` 到 `config/config.json` 并填写：
