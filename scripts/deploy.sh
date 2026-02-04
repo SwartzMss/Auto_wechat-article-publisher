@@ -42,7 +42,7 @@ STATIC_GROUP="${STATIC_GROUP:-$APP_USER}"
 DOMAIN="${DOMAIN:-}"
 DOMAIN_ALIASES="${DOMAIN_ALIASES:-}"
 HTTPS_PORT="${HTTPS_PORT:-443}"
-HTTP_PORT="${HTTP_PORT:-80}"
+HTTP_PORT="${HTTP_PORT:-}"
 SSL_CERT_PATH="${SSL_CERT_PATH:-}"
 SSL_KEY_PATH="${SSL_KEY_PATH:-}"
 NGINX_SITE_NAME="${NGINX_SITE_NAME:-auto-wechat}"
@@ -103,13 +103,6 @@ write_nginx() {
   log "Writing nginx config -> $NGINX_CONF_PATH"
   cat >"$NGINX_CONF_PATH" <<EOF
 server {
-    listen ${HTTP_PORT};
-    listen [::]:${HTTP_PORT};
-    server_name ${SERVER_NAMES};
-    return 301 https://\$host:${HTTPS_PORT}\$request_uri;
-}
-
-server {
     listen ${HTTPS_PORT} ssl http2;
     listen [::]:${HTTPS_PORT} ssl http2;
     server_name ${SERVER_NAMES};
@@ -138,6 +131,20 @@ server {
     }
 }
 EOF
+
+  if [ -n "$HTTP_PORT" ]; then
+    cat >"$NGINX_CONF_PATH.http" <<EOF
+server {
+    listen ${HTTP_PORT};
+    listen [::]:${HTTP_PORT};
+    server_name ${SERVER_NAMES};
+    return 301 https://\$host:${HTTPS_PORT}\$request_uri;
+}
+EOF
+    # prepend HTTP block to main file
+    cat "$NGINX_CONF_PATH.http" "$NGINX_CONF_PATH" >"$NGINX_CONF_PATH.tmp" && mv "$NGINX_CONF_PATH.tmp" "$NGINX_CONF_PATH"
+    rm -f "$NGINX_CONF_PATH.http"
+  fi
 
   ln -sf "$NGINX_CONF_PATH" "$NGINX_ENABLED_PATH"
   nginx -t
