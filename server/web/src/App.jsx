@@ -209,12 +209,6 @@ function App() {
     else setLoading(false);
   };
 
-  const copyMd = async () => {
-    if (!draft.markdown) return;
-    await navigator.clipboard.writeText(draft.markdown || '');
-    setStatus('已复制 Markdown');
-  };
-
   const statusTone = useMemo(() => {
     if (loading) return 'info';
     if (status.includes('错误')) return 'danger';
@@ -311,7 +305,6 @@ function App() {
               <div className={`status-pill status-${statusTone}`} title={status}>{clippedStatus}</div>
               <div className="actions">
                 <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing || uploading}>发布到草稿箱</button>
-                <button className="btn btn-ghost" onClick={copyMd} disabled={!draft.markdown}>复制 Markdown</button>
               </div>
             </div>
             <div className="media-panel">
