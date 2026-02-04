@@ -170,6 +170,8 @@ func New(genAgent *generator.Agent, pubCfg publisher.Config) (*Server, error) {
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create upload dir: %w", err)
 	}
+	cleanupUploadsOlderThan(uploadDir, 24*time.Hour)
+	cleanupTempDrafts(24 * time.Hour)
 
 	sub, err := fs.Sub(embeddedStatic, "web/dist")
 	if err != nil {
@@ -570,4 +572,51 @@ func sanitizeFilename(name string) string {
 	name = strings.ReplaceAll(name, " ", "_")
 	name = strings.ReplaceAll(name, "..", "")
 	return name
+}
+
+// cleanupUploadsOlderThan removes files in dir older than maxAge; best-effort.
+func cleanupUploadsOlderThan(dir string, maxAge time.Duration) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Printf("[cleanup] read uploads dir failed: %v", err)
+		return
+	}
+	threshold := time.Now().Add(-maxAge)
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(threshold) {
+			fp := filepath.Join(dir, e.Name())
+			if err := os.Remove(fp); err == nil {
+				log.Printf("[cleanup] removed stale upload %s", fp)
+			}
+		}
+	}
+}
+
+// cleanupTempDrafts removes old draft-*.md files from system temp dir.
+func cleanupTempDrafts(maxAge time.Duration) {
+	pattern := filepath.Join(os.TempDir(), "draft-*.md")
+	paths, err := filepath.Glob(pattern)
+	if err != nil {
+		log.Printf("[cleanup] glob temp drafts failed: %v", err)
+		return
+	}
+	threshold := time.Now().Add(-maxAge)
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(threshold) {
+			if err := os.Remove(p); err == nil {
+				log.Printf("[cleanup] removed stale temp draft %s", p)
+			}
+		}
+	}
 }
