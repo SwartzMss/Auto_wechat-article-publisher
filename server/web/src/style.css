@@ -92,6 +92,12 @@ body { margin: 0; padding: 0; min-height: 100vh; background: transparent; }
   .col-3, .col-4, .col-5, .col-8 { grid-column: span 1; }
 }
 
+.stacked-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .card {
   border-radius: 16px;
   padding: 20px;
@@ -345,6 +351,7 @@ textarea { min-height: 132px; resize: vertical; }
   overflow-x: auto;
   padding: 6px 2px;
 }
+.horizontal-scroll { overflow-x: auto; }
 .media-item {
   min-width: 180px;
   background: rgba(255,255,255,0.04);

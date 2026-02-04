@@ -283,175 +283,184 @@ function App() {
           </div>
         </header>
 
-        <main className="grid">
-          <section className="card card-solid col-4">
-            <div className="section-title">
-              <span className="dot" />
-              灵感设定
-            </div>
-            <label>主题</label>
-            <input value={spec.topic} onChange={e => setSpec({ ...spec, topic: e.target.value })} placeholder="例如：微信图文发布自动化实践" />
-            <label>大纲（每行一条，选填）</label>
-            <textarea value={spec.outline} onChange={e => setSpec({ ...spec, outline: e.target.value })} placeholder={'引言\n整体流程\n踩坑 & 经验'} />
-            <label>目标字数</label>
-            <div className="actions stacked">
-              <input className="compact" value={spec.words} onChange={e => setSpec({ ...spec, words: e.target.value })} placeholder="如 1200" />
-            </div>
-            <label>额外约束（每行一条）</label>
-            <textarea value={spec.constraints} onChange={e => setSpec({ ...spec, constraints: e.target.value })} placeholder={'禁止使用第一人称\n每节加小结'} />
-            <div className="actions spaced">
-              <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
-                {sessionId ? '基于评论更新' : '生成首稿'}
-              </button>
-              <button
-                className="btn btn-ghost"
-                onClick={() => {
-                  deleteSession();
-                  setSpec(defaultSpec);
-                  setComment('');
-                  setSessionId(null);
-                  setDraft({ markdown: '' });
-                  setHistory([]);
-                  setCover({ path: '', url: '', filename: '' });
-                  setBodyImages([]);
-                  setStatus('等待生成...');
-                }}
-                disabled={loading}
-              >
-                重置
-              </button>
-            </div>
-            <label>评论 / 追加要求</label>
-            <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="例：加强案例部分，补充图片占位说明" />
-          </section>
+                <main className="grid">
+          {/* 左列：状态/发布 + 灵感设定 */}
+          <div className="col-4 stacked-col">
+            <section className="card card-ghost status-card">
+              <div className="section-title status-row">
+                <div className={`status-pill status-${statusTone}`} title={status}>{clippedStatus}</div>
+                <div className="actions">
+                  <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing || uploading}>发布到草稿箱</button>
+                </div>
+              </div>
+              <div className="meta">状态与发布入口；错误简略显示，悬停可看完整信息。</div>
+            </section>
 
-          <section className="card card-ghost col-3">
-            <div className="section-title">
-              <span className="dot" />
-              素材管理
-            </div>
-            <div className="media-panel">
-              <div className="media-card">
+            <section className="card card-solid">
+              <div className="section-title">
+                <span className="dot" />
+                灵感设定
+              </div>
+              <label>主题</label>
+              <input value={spec.topic} onChange={e => setSpec({ ...spec, topic: e.target.value })} placeholder="例如：微信图文发布自动化实践" />
+              <label>大纲（每行一条，选填）</label>
+              <textarea value={spec.outline} onChange={e => setSpec({ ...spec, outline: e.target.value })} placeholder={'引言\\n整体流程\\n踩坑 & 经验'} />
+              <label>目标字数</label>
+              <div className="actions stacked">
+                <input className="compact" value={spec.words} onChange={e => setSpec({ ...spec, words: e.target.value })} placeholder="如 1200" />
+              </div>
+              <label>额外约束（每行一条）</label>
+              <textarea value={spec.constraints} onChange={e => setSpec({ ...spec, constraints: e.target.value })} placeholder={'禁止使用第一人称\\n每节加小结'} />
+              <div className="actions spaced">
+                <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+                  {sessionId ? '基于评论更新' : '生成首稿'}
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    deleteSession();
+                    setSpec(defaultSpec);
+                    setComment('');
+                    setSessionId(null);
+                    setDraft({ markdown: '' });
+                    setHistory([]);
+                    setCover({ path: '', url: '', filename: '' });
+                    setBodyImages([]);
+                    setStatus('等待生成...');
+                  }}
+                  disabled={loading}
+                >
+                  重置
+                </button>
+              </div>
+              <label>评论 / 追加要求</label>
+              <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="例：加强案例部分，补充图片占位说明" />
+            </section>
+          </div>
+
+          {/* 右列：上半编辑预览，下半素材管理 */}
+          <div className="col-8 stacked-col">
+            <section className="card card-ghost preview-card">
+              <div className="editor-card">
                 <div className="section-title">
                   <span className="dot" />
-                  封面图
+                  正文编辑（可定位插图）
                 </div>
-                <div className="upload-tile card-click" onClick={() => coverInputRef.current?.click()}>
-                  {cover.url ? (
-                    <>
-                      <img src={cover.url} alt="cover" className="cover-preview" />
-                      <div className="upload-meta">
-                        <div className="upload-name">封面已上传</div>
-                        <div className="upload-hint">点击可重新选择</div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="upload-empty">
-                      <div className="empty-icon">🖼️</div>
-                      <div className="empty-title">上传封面</div>
-                      <div className="upload-hint">支持 JPG / PNG，点击选择</div>
-                    </div>
-                  )}
-                </div>
-                <input ref={coverInputRef} type="file" accept="image/*" onChange={handleCoverSelect} hidden />
+                <textarea
+                  ref={editorRef}
+                  className="md-editor"
+                  value={draft.markdown || ''}
+                  onChange={e => setDraft({ ...draft, markdown: e.target.value })}
+                  placeholder="点击定位光标，可粘贴或插入图片 Markdown。"
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const snippet = e.dataTransfer.getData('text/plain');
+                    if (snippet) insertSnippet(snippet);
+                  }}
+                />
               </div>
 
-              <div className="media-card">
+              {draft.markdown ? (
+                <div
+                  className="preview markdown-body"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const snippet = e.dataTransfer.getData('text/plain');
+                    if (snippet) insertSnippet(snippet);
+                  }}
+                  title="可拖拽图片插入；精确位置请在上方文本框定位后插入"
+                  dangerouslySetInnerHTML={{ __html: previewHTML }}
+                />
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon">✦</div>
+                  <div className="empty-title">暂无内容</div>
+                  <div className="empty-desc">设置好主题后点击“生成首稿”即可预览 Markdown。</div>
+                </div>
+              )}
+              <div className="history">
                 <div className="section-title">
                   <span className="dot" />
-                  正文图片
+                  修订轨迹
                 </div>
-                <div className="actions spaced">
-                  <button className="btn btn-primary" onClick={() => bodyInputRef.current?.click()} disabled={!sessionId || uploading}>上传正文图片</button>
-                  <div className="meta">{sessionId ? '上传后可拖拽或一键插入' : '需先生成草稿再上传'}</div>
-                </div>
-                <input ref={bodyInputRef} type="file" accept="image/*" multiple hidden onChange={handleBodySelect} />
-                {bodyImages.length ? (
-                  <div className="media-list">
-                    {bodyImages.map((img, idx) => (
-                      <div className="media-item" key={`${img.path}-${idx}`}>
-                        <img
-                          src={img.url}
-                          alt="body-img"
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', `![正文图片](${img.path})`);
-                            e.dataTransfer.effectAllowed = 'copy';
-                          }}
-                          onClick={() => window.open(img.url, '_blank', 'noopener')}
-                        />
-                        <div className="media-meta">
-                          <div className="upload-name">正文图片</div>
-                          <div className="actions">
-                            <button className="btn btn-ghost compact-btn" onClick={() => insertImageIntoMarkdown(img)}>插入正文</button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-inline">{sessionId ? '还没有正文图片' : '生成草稿后再上传图片'}</div>
+                {history.length ? renderHistory() : (
+                  <div className="empty-inline">还没有修订记录，添加评论后尝试“基于评论修订”。</div>
                 )}
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section className="card card-ghost col-5">
-            <div className="section-title status-row">
-              <div className={`status-pill status-${statusTone}`} title={status}>{clippedStatus}</div>
-              <div className="actions">
-                <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing || uploading}>发布到草稿箱</button>
-              </div>
-            </div>
-
-            <div className="editor-card">
+            <section className="card card-ghost media-stack">
               <div className="section-title">
                 <span className="dot" />
-                正文编辑（可定位插图）
+                素材管理
               </div>
-              <textarea
-                ref={editorRef}
-                className="md-editor"
-                value={draft.markdown || ''}
-                onChange={e => setDraft({ ...draft, markdown: e.target.value })}
-                placeholder="点击定位光标，可粘贴或插入图片 Markdown。"
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const snippet = e.dataTransfer.getData('text/plain');
-                  if (snippet) insertSnippet(snippet);
-                }}
-              />
-            </div>
+              <div className="media-panel media-panel-grid">
+                <div className="media-card">
+                  <div className="section-title">
+                    <span className="dot" />
+                    封面图
+                  </div>
+                  <div className="upload-tile card-click" onClick={() => coverInputRef.current?.click()}>
+                    {cover.url ? (
+                      <>
+                        <img src={cover.url} alt="cover" className="cover-preview" />
+                        <div className="upload-meta">
+                          <div className="upload-name">封面已上传</div>
+                          <div className="upload-hint">点击可重新选择</div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="upload-empty">
+                        <div className="empty-icon">🖼️</div>
+                        <div className="empty-title">上传封面</div>
+                        <div className="upload-hint">支持 JPG / PNG，点击选择</div>
+                      </div>
+                    )}
+                  </div>
+                  <input ref={coverInputRef} type="file" accept="image/*" onChange={handleCoverSelect} hidden />
+                </div>
 
-            {draft.markdown ? (
-              <div
-                className="preview markdown-body"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const snippet = e.dataTransfer.getData('text/plain');
-                  if (snippet) insertSnippet(snippet);
-                }}
-                title="可将右侧图片拖拽到此处自动插入 Markdown；精确位置请在上方文本框定位后插入"
-                dangerouslySetInnerHTML={{ __html: previewHTML }}
-              />
-            ) : (
-              <div className="empty-state">
-                <div className="empty-icon">✦</div>
-                <div className="empty-title">暂无内容</div>
-                <div className="empty-desc">设置好主题后点击“生成首稿”即可预览 Markdown。</div>
+                <div className="media-card">
+                  <div className="section-title">
+                    <span className="dot" />
+                    正文图片
+                  </div>
+                  <div className="actions spaced">
+                    <button className="btn btn-primary" onClick={() => bodyInputRef.current?.click()} disabled={!sessionId || uploading}>上传正文图片</button>
+                    <div className="meta">{sessionId ? '上传后可拖拽或一键插入' : '需先生成草稿再上传'}</div>
+                  </div>
+                  <input ref={bodyInputRef} type="file" accept="image/*" multiple hidden onChange={handleBodySelect} />
+                  {bodyImages.length ? (
+                    <div className="media-list horizontal-scroll">
+                      {bodyImages.map((img, idx) => (
+                        <div className="media-item" key={`${img.path}-${idx}`}>
+                          <img
+                            src={img.url}
+                            alt="body-img"
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', `![正文图片](${img.path})`);
+                              e.dataTransfer.effectAllowed = 'copy';
+                            }}
+                            onClick={() => window.open(img.url, '_blank', 'noopener')}
+                          />
+                          <div className="media-meta">
+                            <div className="upload-name">正文图片</div>
+                            <div className="actions">
+                              <button className="btn btn-ghost compact-btn" onClick={() => insertImageIntoMarkdown(img)}>插入正文</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-inline">{sessionId ? '还没有正文图片' : '生成草稿后再上传图片'}</div>
+                  )}
+                </div>
               </div>
-            )}
-            <div className="history">
-              <div className="section-title">
-                <span className="dot" />
-                修订轨迹
-              </div>
-              {history.length ? renderHistory() : (
-                <div className="empty-inline">还没有修订记录，添加评论后尝试“基于评论修订”。</div>
-              )}
-            </div>
-          </section>
+            </section>
+          </div>
         </main>
       </div>
     </div>
