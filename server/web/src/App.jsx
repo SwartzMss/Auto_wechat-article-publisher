@@ -26,7 +26,6 @@ function App() {
 
   const coverInputRef = useRef(null);
   const bodyInputRef = useRef(null);
-  const markdownRef = useRef(null);
   const heartbeatRef = useRef(null);
 
   const payload = useMemo(() => ({
@@ -167,14 +166,16 @@ function App() {
 
   const insertImageIntoMarkdown = (img) => {
     if (!img?.path) return;
-    const cursor = markdownRef.current?.selectionStart ?? (draft.markdown || '').length;
+    insertSnippet(`![正文图片](${img.path})`);
+  };
+
+  const insertSnippet = (snippet) => {
     setDraft((prev) => {
       const md = prev.markdown || '';
-      const snippet = `\n\n![${img.filename || 'image'}](${img.path})\n`;
-      const next = md.slice(0, cursor) + snippet + md.slice(cursor);
+      const next = md ? `${md}\n\n${snippet}\n` : `${snippet}\n`;
       return { ...prev, markdown: next };
     });
-    setStatus('已插入图片到 Markdown');
+    setStatus('已插入图片');
   };
 
   const applySession = (data) => {
@@ -324,7 +325,7 @@ function App() {
                     <>
                       <img src={cover.url} alt="cover" className="cover-preview" />
                       <div className="upload-meta">
-                        <div className="upload-name">{cover.filename || '封面已上传'}</div>
+                        <div className="upload-name">封面已上传</div>
                         <div className="upload-hint">点击可重新选择</div>
                       </div>
                     </>
@@ -355,11 +356,16 @@ function App() {
                       <div className="media-item" key={`${img.path}-${idx}`}>
                         <img
                           src={img.url}
-                          alt={img.filename || `img-${idx}`}
+                          alt="body-img"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', `![正文图片](${img.path})`);
+                            e.dataTransfer.effectAllowed = 'copy';
+                          }}
                           onClick={() => window.open(img.url, '_blank', 'noopener')}
                         />
                         <div className="media-meta">
-                          <div className="upload-name">{img.filename || '正文图片'}</div>
+                          <div className="upload-name">正文图片</div>
                           <div className="actions">
                             <button className="btn btn-ghost compact-btn" onClick={() => insertImageIntoMarkdown(img)}>插入正文</button>
                           </div>
@@ -373,22 +379,18 @@ function App() {
               </div>
             </div>
 
-            <div className="editor-card">
-              <div className="section-title">
-                <span className="dot" />
-                正文 Markdown 可编辑
-              </div>
-              <textarea
-                ref={markdownRef}
-                className="md-editor"
-                value={draft.markdown || ''}
-                onChange={e => setDraft({ ...draft, markdown: e.target.value })}
-                placeholder="生成的正文会出现在这里，您可以粘贴或插入图片 Markdown 链接。"
-              />
-            </div>
-
             {draft.markdown ? (
-              <div className="preview markdown-body" dangerouslySetInnerHTML={{ __html: previewHTML }} />
+              <div
+                className="preview markdown-body"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const snippet = e.dataTransfer.getData('text/plain');
+                  if (snippet) insertSnippet(snippet);
+                }}
+                title="可将上方图片拖拽到此处自动插入 Markdown"
+                dangerouslySetInnerHTML={{ __html: previewHTML }}
+              />
             ) : (
               <div className="empty-state">
                 <div className="empty-icon">✦</div>
