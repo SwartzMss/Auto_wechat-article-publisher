@@ -1,369 +1,447 @@
 package main
 
 import (
-    "bytes"
-    "encoding/json"
-    "errors"
-    "flag"
-    "fmt"
-    "io"
-    "mime/multipart"
-    "net/http"
-    "os"
-    "path/filepath"
-    "regexp"
-    "strings"
-    "time"
+	"bytes"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
 
-    "github.com/yuin/goldmark"
+	"github.com/yuin/goldmark"
 )
 
 const (
-    accessTokenURL = "https://api.weixin.qq.com/cgi-bin/token"
-    uploadImageURL = "https://api.weixin.qq.com/cgi-bin/material/add_material"
-    uploadImgURL   = "https://api.weixin.qq.com/cgi-bin/media/uploadimg"
-    addDraftURL    = "https://api.weixin.qq.com/cgi-bin/draft/add"
+	accessTokenURL = "https://api.weixin.qq.com/cgi-bin/token"
+	uploadImageURL = "https://api.weixin.qq.com/cgi-bin/material/add_material"
+	uploadImgURL   = "https://api.weixin.qq.com/cgi-bin/media/uploadimg"
+	addDraftURL    = "https://api.weixin.qq.com/cgi-bin/draft/add"
 )
 
 type config struct {
-    AppID     string `json:"app_id"`
-    AppSecret string `json:"app_secret"`
+	AppID     string `json:"app_id"`
+	AppSecret string `json:"app_secret"`
 }
 
 type accessTokenResp struct {
-    AccessToken string `json:"access_token"`
-    ErrCode     int    `json:"errcode"`
-    ErrMsg      string `json:"errmsg"`
+	AccessToken string `json:"access_token"`
+	ErrCode     int    `json:"errcode"`
+	ErrMsg      string `json:"errmsg"`
 }
 
 type uploadImageResp struct {
-    MediaID string `json:"media_id"`
-    ErrCode int    `json:"errcode"`
-    ErrMsg  string `json:"errmsg"`
+	MediaID string `json:"media_id"`
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
 }
 
 type uploadImgResp struct {
-    URL     string `json:"url"`
-    ErrCode int    `json:"errcode"`
-    ErrMsg  string `json:"errmsg"`
+	URL     string `json:"url"`
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
 }
 
 type addDraftResp struct {
-    MediaID string `json:"media_id"`
-    ErrCode int    `json:"errcode"`
-    ErrMsg  string `json:"errmsg"`
+	MediaID string `json:"media_id"`
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
 }
 
 type article struct {
-    Title              string `json:"title"`
-    Author             string `json:"author"`
-    Digest             string `json:"digest"`
-    Content            string `json:"content"`
-    ThumbMediaID       string `json:"thumb_media_id"`
-    NeedOpenComment    int    `json:"need_open_comment"`
-    OnlyFansCanComment int    `json:"only_fans_can_comment"`
+	Title              string `json:"title"`
+	Author             string `json:"author"`
+	Digest             string `json:"digest"`
+	Content            string `json:"content"`
+	ThumbMediaID       string `json:"thumb_media_id"`
+	NeedOpenComment    int    `json:"need_open_comment"`
+	OnlyFansCanComment int    `json:"only_fans_can_comment"`
 }
 
 type addDraftPayload struct {
-    Articles []article `json:"articles"`
+	Articles []article `json:"articles"`
 }
 
 func loadConfig(path string) (config, error) {
-    data, err := os.ReadFile(path)
-    if err != nil {
-        return config{}, err
-    }
-    var cfg config
-    if err := json.Unmarshal(data, &cfg); err != nil {
-        return config{}, err
-    }
-    if cfg.AppID == "" || cfg.AppSecret == "" {
-        return config{}, errors.New("config must include app_id and app_secret")
-    }
-    return cfg, nil
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return config{}, err
+	}
+	var cfg config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return config{}, err
+	}
+	if cfg.AppID == "" || cfg.AppSecret == "" {
+		return config{}, errors.New("config must include app_id and app_secret")
+	}
+	return cfg, nil
 }
 
 func getAccessToken(client *http.Client, cfg config) (string, error) {
-    req, err := http.NewRequest("GET", accessTokenURL, nil)
-    if err != nil {
-        return "", err
-    }
-    q := req.URL.Query()
-    q.Set("grant_type", "client_credential")
-    q.Set("appid", cfg.AppID)
-    q.Set("secret", cfg.AppSecret)
-    req.URL.RawQuery = q.Encode()
+	req, err := http.NewRequest("GET", accessTokenURL, nil)
+	if err != nil {
+		return "", err
+	}
+	q := req.URL.Query()
+	q.Set("grant_type", "client_credential")
+	q.Set("appid", cfg.AppID)
+	q.Set("secret", cfg.AppSecret)
+	req.URL.RawQuery = q.Encode()
 
-    resp, err := client.Do(req)
-    if err != nil {
-        return "", err
-    }
-    defer resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
 
-    var data accessTokenResp
-    if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-        return "", err
-    }
-    if data.AccessToken == "" {
-        return "", fmt.Errorf("failed to get access_token: %d %s", data.ErrCode, data.ErrMsg)
-    }
-    return data.AccessToken, nil
+	var data accessTokenResp
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", err
+	}
+	if data.AccessToken == "" {
+		return "", fmt.Errorf("failed to get access_token: %d %s", data.ErrCode, data.ErrMsg)
+	}
+	return data.AccessToken, nil
 }
 
 func uploadImage(client *http.Client, accessToken, imagePath string) (string, error) {
-    file, err := os.Open(imagePath)
-    if err != nil {
-        return "", err
-    }
-    defer file.Close()
+	file, err := os.Open(imagePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
 
-    var body bytes.Buffer
-    writer := multipart.NewWriter(&body)
-    part, err := writer.CreateFormFile("media", filepath.Base(imagePath))
-    if err != nil {
-        return "", err
-    }
-    if _, err := io.Copy(part, file); err != nil {
-        return "", err
-    }
-    if err := writer.Close(); err != nil {
-        return "", err
-    }
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("media", filepath.Base(imagePath))
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return "", err
+	}
+	if err := writer.Close(); err != nil {
+		return "", err
+	}
 
-    req, err := http.NewRequest("POST", uploadImageURL, &body)
-    if err != nil {
-        return "", err
-    }
-    req.Header.Set("Content-Type", writer.FormDataContentType())
-    q := req.URL.Query()
-    q.Set("access_token", accessToken)
-    q.Set("type", "image")
-    req.URL.RawQuery = q.Encode()
+	req, err := http.NewRequest("POST", uploadImageURL, &body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	q := req.URL.Query()
+	q.Set("access_token", accessToken)
+	q.Set("type", "image")
+	req.URL.RawQuery = q.Encode()
 
-    resp, err := client.Do(req)
-    if err != nil {
-        return "", err
-    }
-    defer resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
 
-    var data uploadImageResp
-    if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-        return "", err
-    }
-    if data.MediaID == "" {
-        return "", fmt.Errorf("failed to upload image: %d %s", data.ErrCode, data.ErrMsg)
-    }
-    return data.MediaID, nil
+	var data uploadImageResp
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", err
+	}
+	if data.MediaID == "" {
+		return "", fmt.Errorf("failed to upload image: %d %s", data.ErrCode, data.ErrMsg)
+	}
+	return data.MediaID, nil
 }
 
 func uploadContentImage(client *http.Client, accessToken, imagePath string) (string, error) {
-    file, err := os.Open(imagePath)
-    if err != nil {
-        return "", err
-    }
-    defer file.Close()
+	file, err := os.Open(imagePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
 
-    var body bytes.Buffer
-    writer := multipart.NewWriter(&body)
-    part, err := writer.CreateFormFile("media", filepath.Base(imagePath))
-    if err != nil {
-        return "", err
-    }
-    if _, err := io.Copy(part, file); err != nil {
-        return "", err
-    }
-    if err := writer.Close(); err != nil {
-        return "", err
-    }
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("media", filepath.Base(imagePath))
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return "", err
+	}
+	if err := writer.Close(); err != nil {
+		return "", err
+	}
 
-    req, err := http.NewRequest("POST", uploadImgURL, &body)
-    if err != nil {
-        return "", err
-    }
-    req.Header.Set("Content-Type", writer.FormDataContentType())
-    q := req.URL.Query()
-    q.Set("access_token", accessToken)
-    req.URL.RawQuery = q.Encode()
+	req, err := http.NewRequest("POST", uploadImgURL, &body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	q := req.URL.Query()
+	q.Set("access_token", accessToken)
+	req.URL.RawQuery = q.Encode()
 
-    resp, err := client.Do(req)
-    if err != nil {
-        return "", err
-    }
-    defer resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
 
-    var data uploadImgResp
-    if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-        return "", err
-    }
-    if data.URL == "" {
-        return "", fmt.Errorf("failed to upload content image: %d %s", data.ErrCode, data.ErrMsg)
-    }
-    return data.URL, nil
+	var data uploadImgResp
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", err
+	}
+	if data.URL == "" {
+		return "", fmt.Errorf("failed to upload content image: %d %s", data.ErrCode, data.ErrMsg)
+	}
+	return data.URL, nil
 }
 
 func mdToHTML(md string) (string, error) {
-    var buf bytes.Buffer
-    if err := goldmark.Convert([]byte(md), &buf); err != nil {
-        return "", err
-    }
-    return buf.String(), nil
+	var buf bytes.Buffer
+	if err := goldmark.Convert([]byte(md), &buf); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// WeChat 会弱化部分列表和标题标签，导致有序列表合并、标题样式丢失。
+// 这里在上传前把列表展开、把标题转成带字号的段落，让排版更稳定。
+func flattenListsForWeChat(html string) string {
+	olRe := regexp.MustCompile(`(?s)<ol[^>]*>(.*?)</ol>`) // (?s) 允许换行
+	liRe := regexp.MustCompile(`(?s)<li[^>]*>(.*?)</li>`) // 捕获 li 内容
+
+	html = olRe.ReplaceAllStringFunc(html, func(block string) string {
+		items := liRe.FindAllStringSubmatch(block, -1)
+		if len(items) == 0 {
+			return block
+		}
+		var b strings.Builder
+		for i, item := range items {
+			text := strings.TrimSpace(item[1])
+			b.WriteString("<p>")
+			b.WriteString(fmt.Sprintf("%d. %s", i+1, text))
+			b.WriteString("</p>")
+		}
+		return b.String()
+	})
+
+	ulRe := regexp.MustCompile(`(?s)<ul[^>]*>(.*?)</ul>`)
+	html = ulRe.ReplaceAllStringFunc(html, func(block string) string {
+		items := liRe.FindAllStringSubmatch(block, -1)
+		if len(items) == 0 {
+			return block
+		}
+		var b strings.Builder
+		for _, item := range items {
+			text := strings.TrimSpace(item[1])
+			b.WriteString("<p>• ")
+			b.WriteString(text)
+			b.WriteString("</p>")
+		}
+		return b.String()
+	})
+
+	return html
+}
+
+func convertHeadingsForWeChat(html string) string {
+	hRe := regexp.MustCompile(`(?s)<h([1-6])[^>]*>(.*?)</h[1-6]>`)
+	sizes := map[string]string{
+		"1": "24px",
+		"2": "22px",
+		"3": "20px",
+		"4": "18px",
+		"5": "16px",
+		"6": "15px",
+	}
+
+	return hRe.ReplaceAllStringFunc(html, func(block string) string {
+		parts := hRe.FindStringSubmatch(block)
+		if len(parts) != 3 {
+			return block
+		}
+		size := sizes[parts[1]]
+		if size == "" {
+			size = "18px"
+		}
+		text := strings.TrimSpace(parts[2])
+		// 用 <p> + 内联样式来保留标题层级的视觉效果
+		return fmt.Sprintf(`<p style="font-size:%s;font-weight:700;margin:1em 0 0.6em;">%s</p>`, size, text)
+	})
+}
+
+func normalizeForWeChat(html string) string {
+	html = convertHeadingsForWeChat(html)
+	html = flattenListsForWeChat(html)
+	return html
 }
 
 func replaceMarkdownImages(client *http.Client, accessToken, md string, mdPath string) (string, error) {
-    imgPattern := regexp.MustCompile(`!\[[^\]]*\]\(([^)]+)\)`)
-    matches := imgPattern.FindAllStringSubmatchIndex(md, -1)
-    if len(matches) == 0 {
-        return md, nil
-    }
+	imgPattern := regexp.MustCompile(`!\[[^\]]*\]\(([^)]+)\)`)
+	matches := imgPattern.FindAllStringSubmatchIndex(md, -1)
+	if len(matches) == 0 {
+		return md, nil
+	}
 
-    baseDir := filepath.Dir(mdPath)
-    var builder strings.Builder
-    last := 0
-    for _, match := range matches {
-        if len(match) < 4 {
-            continue
-        }
-        start := match[2]
-        end := match[3]
-        builder.WriteString(md[last:start])
-        imgRef := strings.TrimSpace(md[start:end])
-        if strings.HasPrefix(imgRef, "http://") || strings.HasPrefix(imgRef, "https://") {
-            builder.WriteString(imgRef)
-            last = end
-            continue
-        }
-        if strings.HasPrefix(imgRef, "data:") {
-            builder.WriteString(imgRef)
-            last = end
-            continue
-        }
-        localPath := imgRef
-        if !filepath.IsAbs(localPath) {
-            localPath = filepath.Join(baseDir, imgRef)
-        }
-        uploadedURL, err := uploadContentImage(client, accessToken, localPath)
-        if err != nil {
-            return "", err
-        }
-        builder.WriteString(uploadedURL)
-        last = end
-    }
-    builder.WriteString(md[last:])
-    return builder.String(), nil
+	baseDir := filepath.Dir(mdPath)
+	var builder strings.Builder
+	last := 0
+	for _, match := range matches {
+		if len(match) < 4 {
+			continue
+		}
+		start := match[2]
+		end := match[3]
+		builder.WriteString(md[last:start])
+		imgRef := strings.TrimSpace(md[start:end])
+		if strings.HasPrefix(imgRef, "http://") || strings.HasPrefix(imgRef, "https://") {
+			builder.WriteString(imgRef)
+			last = end
+			continue
+		}
+		if strings.HasPrefix(imgRef, "data:") {
+			builder.WriteString(imgRef)
+			last = end
+			continue
+		}
+		// Prefer the path as written; if it doesn't resolve and isn't absolute, fall back to relative to the markdown file directory.
+		localPath := imgRef
+		if !filepath.IsAbs(localPath) {
+			if _, statErr := os.Stat(localPath); statErr != nil {
+				localPath = filepath.Join(baseDir, imgRef)
+			}
+		}
+		uploadedURL, err := uploadContentImage(client, accessToken, localPath)
+		if err != nil {
+			return "", err
+		}
+		builder.WriteString(uploadedURL)
+		last = end
+	}
+	builder.WriteString(md[last:])
+	return builder.String(), nil
 }
 
 func defaultDigest(md string, limit int) string {
-    compact := strings.Fields(md)
-    joined := strings.Join(compact, " ")
-    if len(joined) <= limit {
-        return joined
-    }
-    return joined[:limit]
+	compact := strings.Fields(md)
+	joined := strings.Join(compact, " ")
+	if len(joined) <= limit {
+		return joined
+	}
+	return joined[:limit]
 }
 
 func addDraft(client *http.Client, accessToken string, art article) (string, error) {
-    payload := addDraftPayload{Articles: []article{art}}
-    body, err := json.Marshal(payload)
-    if err != nil {
-        return "", err
-    }
+	payload := addDraftPayload{Articles: []article{art}}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
 
-    req, err := http.NewRequest("POST", addDraftURL, bytes.NewReader(body))
-    if err != nil {
-        return "", err
-    }
-    req.Header.Set("Content-Type", "application/json")
-    q := req.URL.Query()
-    q.Set("access_token", accessToken)
-    req.URL.RawQuery = q.Encode()
+	req, err := http.NewRequest("POST", addDraftURL, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	q := req.URL.Query()
+	q.Set("access_token", accessToken)
+	req.URL.RawQuery = q.Encode()
 
-    resp, err := client.Do(req)
-    if err != nil {
-        return "", err
-    }
-    defer resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
 
-    var data addDraftResp
-    if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-        return "", err
-    }
-    if data.MediaID == "" {
-        return "", fmt.Errorf("failed to add draft: %d %s", data.ErrCode, data.ErrMsg)
-    }
-    return data.MediaID, nil
+	var data addDraftResp
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", err
+	}
+	if data.MediaID == "" {
+		return "", fmt.Errorf("failed to add draft: %d %s", data.ErrCode, data.ErrMsg)
+	}
+	return data.MediaID, nil
 }
 
 func main() {
-    configPath := flag.String("config", "config.json", "path to config.json")
-    mdPath := flag.String("md", "", "path to markdown file")
-    title := flag.String("title", "", "article title")
-    cover := flag.String("cover", "", "path to cover image")
-    author := flag.String("author", "", "author name")
-    digest := flag.String("digest", "", "article digest")
-    flag.Parse()
+	configPath := flag.String("config", "config.json", "path to config.json")
+	mdPath := flag.String("md", "", "path to markdown file")
+	title := flag.String("title", "", "article title")
+	cover := flag.String("cover", "", "path to cover image")
+	author := flag.String("author", "", "author name")
+	digest := flag.String("digest", "", "article digest")
+	flag.Parse()
 
-    if *mdPath == "" || *title == "" || *cover == "" {
-        fmt.Fprintln(os.Stderr, "--md, --title, and --cover are required")
-        os.Exit(1)
-    }
+	if *mdPath == "" || *title == "" || *cover == "" {
+		fmt.Fprintln(os.Stderr, "--md, --title, and --cover are required")
+		os.Exit(1)
+	}
 
-    cfg, err := loadConfig(*configPath)
-    if err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        os.Exit(1)
-    }
+	cfg, err := loadConfig(*configPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
-    mdBytes, err := os.ReadFile(*mdPath)
-    if err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        os.Exit(1)
-    }
+	mdBytes, err := os.ReadFile(*mdPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
-    finalDigest := *digest
-    if finalDigest == "" {
-        finalDigest = defaultDigest(string(mdBytes), 120)
-    }
+	finalDigest := *digest
+	if finalDigest == "" {
+		finalDigest = defaultDigest(string(mdBytes), 120)
+	}
 
-    client := &http.Client{Timeout: 60 * time.Second}
-    accessToken, err := getAccessToken(client, cfg)
-    if err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        os.Exit(1)
-    }
+	client := &http.Client{Timeout: 60 * time.Second}
+	accessToken, err := getAccessToken(client, cfg)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
-    mdWithImages, err := replaceMarkdownImages(client, accessToken, string(mdBytes), *mdPath)
-    if err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        os.Exit(1)
-    }
+	mdWithImages, err := replaceMarkdownImages(client, accessToken, string(mdBytes), *mdPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
-    contentHTML, err := mdToHTML(mdWithImages)
-    if err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        os.Exit(1)
-    }
+	contentHTML, err := mdToHTML(mdWithImages)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
-    thumbMediaID, err := uploadImage(client, accessToken, *cover)
-    if err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        os.Exit(1)
-    }
+	// 微信对部分标签的兼容性较弱，提前把标题/列表调整成更稳定的结构。
+	contentHTML = normalizeForWeChat(contentHTML)
 
-    art := article{
-        Title:              *title,
-        Author:             *author,
-        Digest:             finalDigest,
-        Content:            contentHTML,
-        ThumbMediaID:       thumbMediaID,
-        NeedOpenComment:    0,
-        OnlyFansCanComment: 0,
-    }
+	thumbMediaID, err := uploadImage(client, accessToken, *cover)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
-    mediaID, err := addDraft(client, accessToken, art)
-    if err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        os.Exit(1)
-    }
+	art := article{
+		Title:              *title,
+		Author:             *author,
+		Digest:             finalDigest,
+		Content:            contentHTML,
+		ThumbMediaID:       thumbMediaID,
+		NeedOpenComment:    0,
+		OnlyFansCanComment: 0,
+	}
 
-    fmt.Println(mediaID)
+	mediaID, err := addDraft(client, accessToken, art)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	fmt.Println(mediaID)
 }
