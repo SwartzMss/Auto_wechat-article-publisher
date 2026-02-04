@@ -70,6 +70,25 @@ fi
 
 BACKEND_HOST="127.0.0.1"
 BACKEND_PORT="8080"
+if [ -z "$BIND_ADDR" ] && [ -f "$CONFIG_FILE" ]; then
+  # Try to read server_addr from config JSON; ignore failure and keep default.
+  addr=$(python - <<'PY' 2>/dev/null
+import json, re, sys, pathlib
+path = pathlib.Path(sys.argv[1])
+try:
+    # naive // comment stripping for json-like examples
+    text = re.sub(r'//.*', '', path.read_text())
+    data = json.loads(text)
+    val = data.get("server_addr") or ""
+    print(val)
+except Exception:
+    pass
+PY "$CONFIG_FILE")
+  if [ -n "$addr" ]; then
+    BIND_ADDR="$addr"
+  fi
+fi
+
 if [ -n "$BIND_ADDR" ]; then
   addr="$BIND_ADDR"
   if [[ "$addr" == *:* ]]; then
