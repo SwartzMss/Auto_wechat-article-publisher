@@ -103,10 +103,21 @@ func buildLLM(cfg publisher.Config) (generator.LLMClient, error) {
 	switch cfg.LLM.Provider {
 	case "openai":
 		return generator.NewOpenAILLMFromConfig(&generator.LLMSettings{
-			Provider:  cfg.LLM.Provider,
-			Model:     cfg.LLM.Model,
-			APIKeyEnv: cfg.LLM.APIKeyEnv,
-			BaseURL:   cfg.LLM.BaseURL,
+			Provider: cfg.LLM.Provider,
+			Model:    cfg.LLM.Model,
+			APIKey:   cfg.LLM.APIKey,
+			BaseURL:  cfg.LLM.BaseURL,
+		})
+	case "deepseek":
+		// DeepSeek 提供 OpenAI 兼容接口，需填写 base_url（例如官方/网关地址）。
+		if cfg.LLM.BaseURL == "" {
+			return nil, fmt.Errorf("llm provider deepseek requires base_url (OpenAI-compatible endpoint)")
+		}
+		return generator.NewOpenAILLMFromConfig(&generator.LLMSettings{
+			Provider: cfg.LLM.Provider,
+			Model:    cfg.LLM.Model,
+			APIKey:   cfg.LLM.APIKey,
+			BaseURL:  cfg.LLM.BaseURL,
 		})
 	default:
 		return nil, fmt.Errorf("llm provider %s not supported", cfg.LLM.Provider)

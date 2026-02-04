@@ -3,7 +3,6 @@ package generator
 import (
 	"context"
 	"errors"
-	"os"
 
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -19,18 +18,13 @@ func NewOpenAILLMFromConfig(cfg *LLMSettings) (*OpenAILLM, error) {
 	if cfg == nil {
 		return nil, errors.New("llm config is nil")
 	}
-	apiEnv := cfg.APIKeyEnv
-	if apiEnv == "" {
-		apiEnv = "OPENAI_API_KEY"
-	}
-	key := getenv(apiEnv)
-	if key == "" {
-		return nil, errors.New("openai api key missing")
+	if cfg.APIKey == "" {
+		return nil, errors.New("openai api key missing; provide llm.api_key")
 	}
 	if cfg.Model == "" {
 		return nil, errors.New("llm model is required")
 	}
-	opts := []option.RequestOption{option.WithAPIKey(key)}
+	opts := []option.RequestOption{option.WithAPIKey(cfg.APIKey)}
 	if cfg.BaseURL != "" {
 		opts = append(opts, option.WithBaseURL(cfg.BaseURL))
 	}
@@ -68,9 +62,4 @@ func (o *OpenAILLM) Complete(ctx context.Context, prompt Prompt) (string, error)
 		return "", errors.New("openai: empty choices")
 	}
 	return resp.Choices[0].Message.Content, nil
-}
-
-func getenv(k string) string {
-	v, _ := os.LookupEnv(k)
-	return v
 }

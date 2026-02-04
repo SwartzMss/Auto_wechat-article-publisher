@@ -28,18 +28,18 @@ const (
 
 // Config holds the WeChat app credentials.
 type Config struct {
-	AppID     string     `json:"app_id"`
-	AppSecret string     `json:"app_secret"`
-	LLM       *LLMConfig `json:"llm,omitempty"`
+	AppID      string     `json:"app_id"`
+	AppSecret  string     `json:"app_secret"`
+	LLM        *LLMConfig `json:"llm,omitempty"`
 	ServerAddr string     `json:"server_addr,omitempty"`
 }
 
 // LLMConfig 预留给生成模块的模型配置（可选，不影响发布流程）。
 type LLMConfig struct {
-	Provider  string `json:"provider,omitempty"`
-	Model     string `json:"model,omitempty"`
-	APIKeyEnv string `json:"api_key_env,omitempty"`
-	BaseURL   string `json:"base_url,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	Model    string `json:"model,omitempty"`
+	APIKey   string `json:"api_key,omitempty"`
+	BaseURL  string `json:"base_url,omitempty"`
 }
 
 // PublishParams describes the content to be published.

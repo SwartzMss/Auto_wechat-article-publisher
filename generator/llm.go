@@ -9,8 +9,8 @@ type LLMClient interface {
 
 // LLMSettings 提供给具体实现的基础配置。
 type LLMSettings struct {
-	Provider  string
-	Model     string
-	APIKeyEnv string
-	BaseURL   string
+	Provider string
+	Model    string
+	APIKey   string
+	BaseURL  string
 }
