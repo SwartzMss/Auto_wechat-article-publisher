@@ -71,11 +71,15 @@ function App() {
       title: rawDraft.title || rawDraft.Title || '',
       digest: rawDraft.digest || rawDraft.Digest || '',
     };
-    const normalizedHistory = (data.history || []).map((h) => ({
-      comment: h.comment || h.Comment || h.summary || h.Summary || '',
-      summary: h.summary || h.Summary || '',
-      created_at: h.created_at || h.CreatedAt || '',
-    }));
+    const normalizedHistory = (data.history || []).map((h) => {
+      const summary = h.summary || h.Summary || '';
+      const friendly = summary.toLowerCase().includes('initial') ? '首次生成' : summary;
+      return {
+        comment: h.comment || h.Comment || h.summary || h.Summary || '',
+        summary: friendly,
+        created_at: h.created_at || h.CreatedAt || '',
+      };
+    });
     setSessionId(data.session_id);
     setDraft(normalizedDraft);
     setHistory(normalizedHistory);
