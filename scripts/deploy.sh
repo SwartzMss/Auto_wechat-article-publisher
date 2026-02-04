@@ -74,18 +74,21 @@ fi
 BACKEND_HOST="127.0.0.1"
 BACKEND_PORT="8080"
 if [ -z "$BIND_ADDR" ] && [ -f "$CONFIG_FILE" ]; then
-  # Try to read server_addr from config JSON; ignore failure and keep default.
+  # Try JSON first; fall back to regex extraction if JSON is malformed (e.g., secrets redacted).
   addr=$(
     python - "$CONFIG_FILE" <<'PY' 2>/dev/null
 import json, re, sys, pathlib
 path = pathlib.Path(sys.argv[1])
+text = re.sub(r'//.*', '', path.read_text())
 try:
-    text = re.sub(r'//.*', '', path.read_text())
-    data = json.loads(text)
-    val = data.get("server_addr") or ""
+    val = json.loads(text).get("server_addr") or ""
     print(val)
+    raise SystemExit
 except Exception:
     pass
+m = re.search(r'"server_addr"\s*:\s*"([^"]+)"', text)
+if m:
+    print(m.group(1))
 PY
   )
   if [ -n "$addr" ]; then
@@ -104,7 +107,7 @@ if [ -n "$BIND_ADDR" ]; then
     BACKEND_PORT="$addr"
   fi
 fi
-PROXY_PASS="http://${BACKEND_HOST}:${BACKEND_PORT}/"
+PROXY_PASS="http://${BACKEND_HOST}:${BACKEND_PORT}"
 
 ensure_paths() {
   mkdir -p "$STATIC_ROOT"

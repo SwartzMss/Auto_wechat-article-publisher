@@ -71,7 +71,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/sessions", s.handleSessionCreate)
 	mux.HandleFunc("/api/sessions/", s.handleSessionByID)
 	mux.Handle("/", s.staticHandler())
-	return logMiddleware(mux)
+	return corsMiddleware(logMiddleware(mux))
 }
 
 func (s *Server) staticHandler() http.Handler {
@@ -206,6 +206,21 @@ type statusRecorder struct {
 	http.ResponseWriter
 	status int
 	bytes  int
+}
+
+// corsMiddleware enables simple CORS for API routes so browsers can preflight POST safely.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (r *statusRecorder) WriteHeader(statusCode int) {
