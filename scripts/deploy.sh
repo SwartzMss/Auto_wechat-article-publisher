@@ -232,6 +232,8 @@ deploy() {
   write_systemd
   write_logrotate
   reload_nginx
+  systemctl daemon-reload
+  systemctl restart "$SERVICE_NAME"
   log "Deployment complete. Check: systemctl status $SERVICE_NAME"
 }
 
