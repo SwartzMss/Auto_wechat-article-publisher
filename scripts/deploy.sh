@@ -48,6 +48,7 @@ SSL_KEY_PATH="${SSL_KEY_PATH:-}"
 NGINX_SITE_NAME="${NGINX_SITE_NAME:-auto-wechat}"
 NGINX_CONF_PATH="${NGINX_CONF_PATH:-/etc/nginx/sites-available/${NGINX_SITE_NAME}.conf}"
 NGINX_ENABLED_PATH="${NGINX_ENABLED_PATH:-/etc/nginx/sites-enabled/${NGINX_SITE_NAME}.conf}"
+LOG_FILE="${LOG_FILE:-/var/log/auto-wechat/app.log}"
 
 ensure_root
 require_cmd systemctl
@@ -106,6 +107,9 @@ PROXY_PASS="http://${BACKEND_HOST}:${BACKEND_PORT}/"
 ensure_paths() {
   mkdir -p "$STATIC_ROOT"
   chown -R "$STATIC_OWNER":"$STATIC_GROUP" "$STATIC_ROOT" || true
+  mkdir -p "$(dirname "$LOG_FILE")"
+  touch "$LOG_FILE" || true
+  chown "$STATIC_OWNER":"$STATIC_GROUP" "$LOG_FILE" || true
 }
 
 sync_frontend() {
@@ -184,8 +188,8 @@ WorkingDirectory=${ROOT}
 ExecStart=${BINARY} --serve --config ${CONFIG_FILE} ${BIND_ADDR:+--addr ${BIND_ADDR}}
 Restart=always
 RestartSec=5
-StandardOutput=journal
-StandardError=journal
+StandardOutput=append:${LOG_FILE}
+StandardError=append:${LOG_FILE}
 
 [Install]
 WantedBy=multi-user.target

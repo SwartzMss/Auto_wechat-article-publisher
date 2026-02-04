@@ -17,6 +17,7 @@
   - `SSL_CERT_PATH`
   - `SSL_KEY_PATH`
   - 若使用非 443 端口，设置 `HTTPS_PORT`
+  - 可选 `LOG_FILE`（默认 `/var/log/auto-wechat/app.log`）
 
 ## 使用
 ### 启动 Web 服务
@@ -40,3 +41,4 @@ go run . --serve --config config/config.json --addr :8080
 - 前端：`cd server/web && npm install && npm run dev`；打包用 `npm run build`
 - 测试：`GOCACHE=/tmp/gocache go test ./...`
 - 公众号如有 IP 白名单，需将运行机公网 IP 加入。
+- 日志：部署后可用 `journalctl -u auto-wechat.service -f` 查看；文件日志默认写入 `/var/log/auto-wechat/app.log`（可在 `config/deploy.env` 中改 `LOG_FILE`）。
