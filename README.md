@@ -8,15 +8,15 @@
 - 一键发布到公众号草稿箱：上传封面/正文图片并转换为微信兼容 HTML。
 
 ## 配置
-1. 复制 `config/config.example.json` 到 `config/config.json` 并填写：
-   - `app_id` / `app_secret`
-   - `server_addr`（默认 `:8080`）
-   - `llm.provider`（`openai` 或 `deepseek`），`model`，`api_key`；若 `deepseek` 必填 `base_url`
-2. 复制 `config/deploy.env.example` 到 `config/deploy.env`，至少填写：
-   - `DOMAIN`
-   - `SSL_CERT_PATH`
-   - `SSL_KEY_PATH`
-   - 需要非 443 端口时改 `HTTPS_PORT`
+- 运行配置（`config/config.json`，由 `config/config.example.json` 复制）
+  - `app_id` / `app_secret`
+  - `server_addr`（默认 `:8080`）
+  - `llm.provider`（`openai` 或 `deepseek`），`model`，`api_key`；若 `deepseek` 必填 `base_url`
+- 部署配置（`config/deploy.env`，由 `config/deploy.env.example` 复制）
+  - `DOMAIN`
+  - `SSL_CERT_PATH`
+  - `SSL_KEY_PATH`
+  - 若使用非 443 端口，设置 `HTTPS_PORT`
 
 ## 使用
 ### CLI 发布
