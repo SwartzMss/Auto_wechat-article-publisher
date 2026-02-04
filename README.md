@@ -19,15 +19,6 @@
   - 若使用非 443 端口，设置 `HTTPS_PORT`
 
 ## 使用
-### CLI 发布
-```bash
-go run . --config config/config.json \
-  --md samples/article.md \
-  --title "测试文章" \
-  --cover samples/cover.jpg \
-  --author "作者"
-```
-
 ### 启动 Web 服务
 ```bash
 go run . --serve --config config/config.json --addr :8080
