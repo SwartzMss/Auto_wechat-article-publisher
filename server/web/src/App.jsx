@@ -221,6 +221,12 @@ function App() {
     return 'neutral';
   }, [status, loading]);
 
+  const clippedStatus = useMemo(() => {
+    const limit = 120;
+    if ((status || '').length <= limit) return status;
+    return `${status.slice(0, limit)}...`;
+  }, [status]);
+
   const previewHTML = useMemo(() => {
     const uploadMap = [...bodyImages, cover].filter(Boolean);
     let md = draft.markdown || '';
@@ -301,7 +307,7 @@ function App() {
 
           <section className="card card-ghost col-8">
             <div className="section-title status-row">
-              <div className={`status-pill status-${statusTone}`}>{status}</div>
+              <div className={`status-pill status-${statusTone}`} title={status}>{clippedStatus}</div>
               <div className="actions">
                 <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing || uploading}>发布到草稿箱</button>
                 <button className="btn btn-ghost" onClick={copyMd} disabled={!draft.markdown}>复制 Markdown</button>

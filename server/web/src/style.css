@@ -208,6 +208,10 @@ textarea { min-height: 132px; resize: vertical; }
   color: #e8ecff;
   font-weight: 700;
   border: 1px solid rgba(255, 255, 255, 0.14);
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .status-info { background: rgba(124, 247, 255, 0.12); color: #9ad5ff; border-color: rgba(124, 247, 255, 0.35); }
 .status-success { background: rgba(112, 255, 201, 0.14); color: #6effc9; border-color: rgba(112, 255, 201, 0.35); }
