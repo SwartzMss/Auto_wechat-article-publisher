@@ -98,7 +98,9 @@ func BuildInitialPrompt(spec Spec) Prompt {
 	if spec.Words > 0 {
 		sb.WriteString(fmt.Sprintf("- 目标字数约 %d 字（允许 ±15%%）。\n", spec.Words))
 	}
-	for _, c := range mergedConstraints(spec) {
+	cons := mergedConstraints(spec)
+	sb.WriteString(fmt.Sprintf("- 写作风格：%s\n", spec.Style))
+	for _, c := range cons {
 		sb.WriteString(fmt.Sprintf("- %s\n", c))
 	}
 	sb.WriteString("- 必须包含一级标题作为文章标题。\n")
@@ -110,7 +112,7 @@ func BuildInitialPrompt(spec Spec) Prompt {
 	}
 
 	user := fmt.Sprintf("主题：%s\n请输出符合上述要求的完整 Markdown。", spec.Topic)
-	log.Printf("[Prompt][initial] system:\n%s\nuser:\n%s\n", sb.String(), user)
+	log.Printf("[Prompt][initial] style=%s constraints=%d\nsystem:\n%s\nuser:\n%s\n", spec.Style, len(cons), sb.String(), user)
 
 	return Prompt{
 		System:  "严守 Markdown 结构，禁止输出额外说明。",
@@ -125,7 +127,9 @@ func BuildRevisionPrompt(spec Spec, prev Draft, comment string, history []Turn) 
 	sb.WriteString("你是一名专业编辑，基于用户反馈对稿件做最小必要改动，保持 Markdown 结构。\n")
 	sb.WriteString("- 维持标题层级和列表格式。\n")
 	sb.WriteString("- 如果反馈无效或不合理，说明原因并保持原文。\n")
-	for _, c := range mergedConstraints(spec) {
+	cons := mergedConstraints(spec)
+	sb.WriteString(fmt.Sprintf("- 写作风格：%s\n", spec.Style))
+	for _, c := range cons {
 		sb.WriteString(fmt.Sprintf("- %s\n", c))
 	}
 
