@@ -40,9 +40,9 @@ function App() {
     style: spec.style,
   }), [spec]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (forceNew = false) => {
     setLoading(true);
-    const isNew = !sessionId;
+    const isNew = forceNew || !sessionId;
     setStatus(isNew ? '生成中...' : '修订中...');
     const res = await fetch(isNew ? '/api/sessions' : `/api/sessions/${sessionId}`, {
       method: 'POST',
@@ -355,8 +355,22 @@ function App() {
                 />
               )}
               <div className="actions spaced">
-                <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+                <button className="btn btn-primary" onClick={() => handleSubmit(false)} disabled={loading}>
                   {sessionId ? '基于评论更新' : '生成首稿'}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    deleteSession();
+                    setSessionId(null);
+                    setHistory([]);
+                    setDraft({ markdown: '' });
+                    setStatus('重新生成中...');
+                    handleSubmit(true);
+                  }}
+                  disabled={loading}
+                >
+                  重新生成首稿
                 </button>
                 <button
                   className="btn btn-ghost"
