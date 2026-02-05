@@ -52,6 +52,9 @@ LOG_FILE="${LOG_FILE:-$ROOT/logs/app.log}"
 LOG_FILE_ABS="$(cd -- "$(dirname "$LOG_FILE")" && pwd)/$(basename "$LOG_FILE")"
 LOGROTATE_ENABLE="${LOGROTATE_ENABLE:-1}"
 CLIENT_MAX_BODY_SIZE="${CLIENT_MAX_BODY_SIZE:-25m}"
+PROXY_READ_TIMEOUT="${PROXY_READ_TIMEOUT:-300s}"
+PROXY_SEND_TIMEOUT="${PROXY_SEND_TIMEOUT:-300s}"
+PROXY_CONNECT_TIMEOUT="${PROXY_CONNECT_TIMEOUT:-60s}"
 
 ensure_root
 require_cmd systemctl
@@ -154,6 +157,9 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_http_version 1.1;
+        proxy_read_timeout ${PROXY_READ_TIMEOUT};
+        proxy_send_timeout ${PROXY_SEND_TIMEOUT};
+        proxy_connect_timeout ${PROXY_CONNECT_TIMEOUT};
     }
 
     # Serve uploaded images via backend so it can read ./uploads
@@ -164,6 +170,9 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_http_version 1.1;
+        proxy_read_timeout ${PROXY_READ_TIMEOUT};
+        proxy_send_timeout ${PROXY_SEND_TIMEOUT};
+        proxy_connect_timeout ${PROXY_CONNECT_TIMEOUT};
     }
 
     location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg)$ {
