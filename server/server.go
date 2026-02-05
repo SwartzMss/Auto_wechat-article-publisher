@@ -96,6 +96,16 @@ func (s *sessionStore) get(id string) (*generator.Session, bool) {
 	return entry.sess, true
 }
 
+func (s *sessionStore) getUploads(id string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.sessions[id]
+	if !ok {
+		return nil
+	}
+	return append([]string(nil), entry.uploads...)
+}
+
 func (s *sessionStore) heartbeat(id string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -365,6 +375,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "draft is empty; generate first", http.StatusBadRequest)
 		return
 	}
+	uploads := s.store.getUploads(req.SessionID)
 
 	// Resolve cover path (required by WeChat). Use provided path or fallback to samples/cover.jpg if exists.
 	coverPath := strings.TrimSpace(req.CoverPath)
@@ -394,13 +405,25 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 		digest = sess.Draft.Digest
 	}
 
+	mdText := sess.Draft.Markdown
+	for _, up := range uploads {
+		if up == "" {
+			continue
+		}
+		abs, err := filepath.Abs(up)
+		if err != nil {
+			continue
+		}
+		mdText = strings.ReplaceAll(mdText, up, abs)
+	}
+
 	tmp, err := os.CreateTemp("", "draft-*.md")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer os.Remove(tmp.Name())
-	if _, err := tmp.WriteString(sess.Draft.Markdown); err != nil {
+	if _, err := tmp.WriteString(mdText); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
