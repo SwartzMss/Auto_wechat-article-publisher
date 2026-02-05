@@ -355,21 +355,7 @@ function App() {
                 />
               )}
               <div className="actions spaced">
-                <button className="btn btn-primary" onClick={() => handleSubmit(false)} disabled={loading}>
-                  {sessionId ? '基于评论更新' : '生成首稿'}
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    deleteSession();
-                    setSessionId(null);
-                    setHistory([]);
-                    setDraft({ markdown: '' });
-                    setStatus('重新生成中...');
-                    handleSubmit(true);
-                  }}
-                  disabled={loading}
-                >
+                <button className="btn btn-primary" onClick={() => handleSubmit(true)} disabled={loading}>
                   重新生成首稿
                 </button>
                 <button
@@ -395,8 +381,8 @@ function App() {
               <div className="actions spaced">
                 <button
                   className="btn btn-secondary"
-                  onClick={handleSubmit}
-                  disabled={loading}
+                  onClick={() => handleSubmit(false)}
+                  disabled={loading || !sessionId}
                 >
                   提交评论修订
                 </button>
