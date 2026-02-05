@@ -295,7 +295,7 @@ function App() {
               <div className="section-title status-row">
                 <div className={`status-pill status-${statusTone}`} title={status}>{clippedStatus}</div>
                 <div className="actions">
-                  <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing || uploading}>发布到草稿箱</button>
+                  <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing || uploading}>一键发布</button>
                 </div>
               </div>
             </section>
