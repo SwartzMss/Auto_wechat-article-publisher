@@ -253,6 +253,7 @@ type publishReq struct {
 	Author    string `json:"author,omitempty"`
 	Title     string `json:"title,omitempty"`
 	Digest    string `json:"digest,omitempty"`
+	Markdown  string `json:"markdown,omitempty"`
 }
 
 type publishResp struct {
@@ -374,6 +375,10 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 	if sess.Draft.Markdown == "" {
 		http.Error(w, "draft is empty; generate first", http.StatusBadRequest)
 		return
+	}
+
+	if strings.TrimSpace(req.Markdown) != "" {
+		sess.Draft.Markdown = req.Markdown
 	}
 	uploads := s.store.getUploads(req.SessionID)
 

@@ -81,6 +81,7 @@ function App() {
       body: JSON.stringify({
         session_id: sessionId,
         cover_path: cover.path || undefined,
+        markdown: draft.markdown,
         title: draft.title,
         digest: draft.digest,
       }),
