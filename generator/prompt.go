@@ -88,8 +88,6 @@ func BuildInitialPrompt(spec Spec) Prompt {
 	if styleKey == "" {
 		styleKey = "life-rational"
 	}
-	sb.WriteString(fmt.Sprintf("- 写作风格：%s\n", styleKey))
-
 	stylePrompt := strings.TrimSpace(stylePresets[styleKey])
 	if stylePrompt != "" {
 		sb.WriteString("风格预设：\n")
@@ -134,8 +132,6 @@ func BuildRevisionPrompt(spec Spec, prev Draft, comment string, history []Turn) 
 	if styleKey == "" {
 		styleKey = "life-rational"
 	}
-	sb.WriteString(fmt.Sprintf("- 写作风格：%s\n", styleKey))
-
 	stylePrompt := strings.TrimSpace(stylePresets[styleKey])
 	if stylePrompt != "" {
 		sb.WriteString("风格预设：\n")
