@@ -7,8 +7,14 @@ const defaultSpec = {
   outline: '',
   tone: '',
   audience: '',
-  words: '',
+  words: '500',
   constraints: '',
+  style: 'life-rational',
+};
+
+const STYLE_PRESETS = {
+  'life-rational': `你是一名科普写作者，面向没有专业背景的普通读者。\n\n写作要求：\n- 风格：生活化、理性、克制\n- 语气：冷静、解释型，不煽动情绪\n- 不使用营销号语言（如“震惊”“你一定不知道”）\n- 不居高临下，不对读者进行道德评判\n- 用日常生活场景引出问题\n- 用简单的科学模型或研究结论进行解释\n- 避免过多专业术语，如必须出现请顺带解释\n\n文章结构建议：\n1. 一个真实生活场景或普遍困惑\n2. 人们常见的直觉理解\n3. 科学上的解释或研究发现\n4. 一个温和、开放的收束结论\n\n目标：\n让读者读完后觉得“原来是这样”，而不是“我被教育了”。`,
+  'warm-healing': `你是一名温和的科普写作者，擅长用科学解释人的情绪和行为。\n\n写作要求：\n- 风格：温和、治愈、有同理心\n- 语气：像一个理解人的朋友，而不是专家或老师\n- 允许情绪表达，但不过度煽情\n- 不指责、不批评、不下“你应该”的结论\n- 科学内容作为解释工具，而不是说服工具\n\n文章结构建议：\n1. 描述一种常见的情绪或困扰\n2. 明确告诉读者：这种状态并不罕见\n3. 用心理学或行为科学解释为什么会这样\n4. 给出一个宽松、非强制的理解视角\n\n目标：\n让读者读完后感觉“被理解”，而不是“被分析”。`,
 };
 
 function App() {
@@ -29,14 +35,19 @@ function App() {
   const bodyInputRef = useRef(null);
   const heartbeatRef = useRef(null);
 
-  const payload = useMemo(() => ({
-    topic: spec.topic.trim(),
-    outline: spec.outline.split('\n').filter(Boolean),
-    tone: spec.tone.trim(),
-    audience: spec.audience.trim(),
-    words: parseInt(spec.words, 10) || 0,
-    constraints: spec.constraints.split('\n').filter(Boolean),
-  }), [spec]);
+  const payload = useMemo(() => {
+    const userConstraints = spec.constraints.split('\n').filter(Boolean);
+    const stylePrompt = STYLE_PRESETS[spec.style] || '';
+    const constraints = stylePrompt ? [stylePrompt, ...userConstraints] : userConstraints;
+    return {
+      topic: spec.topic.trim(),
+      outline: spec.outline.split('\n').filter(Boolean),
+      tone: spec.tone.trim(),
+      audience: spec.audience.trim(),
+      words: parseInt(spec.words, 10) || 0,
+      constraints,
+    };
+  }, [spec]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -213,11 +224,14 @@ function App() {
     };
     const normalizedHistory = (data.history || []).map((h) => {
       const baseSummary = h.summary || h.Summary || '';
-      const friendly = baseSummary.toLowerCase().includes('initial') ? '首次生成' : baseSummary;
       const baseComment = h.comment || h.Comment || '';
+      const isInitial = [baseSummary, baseComment].some((txt) =>
+        (txt || '').toLowerCase().includes('initial'),
+      );
+      const friendly = isInitial ? '首稿' : baseSummary;
       return {
-        comment: baseComment || friendly,
-        summary: friendly || baseSummary,
+        comment: isInitial ? friendly : (baseComment || friendly || baseSummary),
+        summary: friendly || baseSummary || baseComment,
         created_at: h.created_at || h.CreatedAt || '',
       };
     });
@@ -290,7 +304,7 @@ function App() {
 
         <main className="grid">
           {/* 左列：状态/发布 + 灵感设定 */}
-          <div className="col-4 stacked-col">
+          <div className="col-3 stacked-col">
             <section className="card card-ghost status-card">
               <div className="section-title status-row">
                 <div className={`status-pill status-${statusTone}`} title={status}>{clippedStatus}</div>
@@ -313,14 +327,23 @@ function App() {
                 onChange={e => setSpec({ ...spec, outline: e.target.value })}
                 placeholder={`资料要点/链接/案例\n可多行，每行一条`}
               />
-              <div className="inline-field">
-                <label>目标字数</label>
+              <div className="inline-field dual">
+                <label>字数</label>
                 <input
                   className="compact"
                   value={spec.words}
                   onChange={e => setSpec({ ...spec, words: e.target.value })}
-                  placeholder="如 1200"
+                  placeholder="默认 500"
                 />
+                <label className="shrink">风格</label>
+                <select
+                  className="compact style-select"
+                  value={spec.style}
+                  onChange={(e) => setSpec({ ...spec, style: e.target.value })}
+                >
+                  <option value="life-rational">生活化·理性</option>
+                  <option value="warm-healing">温和·治愈</option>
+                </select>
               </div>
               <div className="constraints-toggle">
                 <label>写作指南</label>
@@ -367,7 +390,7 @@ function App() {
           </div>
 
           {/* 右列：上半编辑预览，下半素材管理 */}
-          <div className="col-8 stacked-col">
+          <div className="col-9 stacked-col">
             <section className="card card-ghost preview-card">
               <div className="editor-card">
                 <div className="section-title">
@@ -411,15 +434,6 @@ function App() {
                   <div className="empty-desc">设置好主题后点击“生成首稿”即可预览 Markdown。</div>
                 </div>
               )}
-              <div className="history">
-                <div className="section-title">
-                  <span className="dot" />
-                  修订轨迹
-                </div>
-                {history.length ? renderHistory() : (
-                  <div className="empty-inline">还没有修订记录，添加评论后尝试“基于评论修订”。</div>
-                )}
-              </div>
             </section>
 
             <section className="card card-ghost media-stack">

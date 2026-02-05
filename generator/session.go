@@ -30,7 +30,8 @@ func (s *Session) Propose(ctx context.Context) (Draft, error) {
 		return Draft{}, err
 	}
 	s.Draft = draft
-	s.appendTurn("initial", draft, "首稿")
+	// 记录首稿，使用中文备注便于前端展示
+	s.appendTurn("首稿", draft, "首稿")
 	return draft, nil
 }
 
