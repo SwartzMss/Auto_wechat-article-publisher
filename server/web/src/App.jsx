@@ -512,12 +512,6 @@ function App() {
                             }}
                             onClick={() => window.open(img.url, '_blank', 'noopener')}
                           />
-                          <div className="media-meta">
-                            <div className="upload-name">正文图片</div>
-                            <div className="actions">
-                              <button className="btn btn-ghost compact-btn" onClick={() => insertImageIntoMarkdown(img)}>插入正文</button>
-                            </div>
-                          </div>
                         </div>
                       ))}
                     </div>
