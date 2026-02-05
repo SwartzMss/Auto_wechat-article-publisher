@@ -410,7 +410,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 		digest = sess.Draft.Digest
 	}
 
-	mdText := sess.Draft.Markdown
+	mdText := stripLeadingH1(sess.Draft.Markdown)
 	for _, up := range uploads {
 		if up == "" {
 			continue
@@ -456,6 +456,23 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, publishResp{MediaID: mediaID, Title: title, CoverPath: coverPath})
+}
+
+// stripLeadingH1 removes the first top-level markdown heading (and a following blank line if present),
+// so that the content body doesn't repeat the title that will be provided separately to WeChat.
+func stripLeadingH1(md string) string {
+	lines := strings.Split(md, "\n")
+	if len(lines) == 0 {
+		return md
+	}
+	start := 0
+	if strings.HasPrefix(strings.TrimSpace(lines[0]), "# ") {
+		start = 1
+		if len(lines) > 1 && strings.TrimSpace(lines[1]) == "" {
+			start = 2
+		}
+	}
+	return strings.Join(lines[start:], "\n")
 }
 
 // --- Helpers ---
