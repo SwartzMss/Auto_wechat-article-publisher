@@ -26,19 +26,12 @@ func BuildInitialPrompt(spec Spec) Prompt {
 	if spec.Words > 0 {
 		sb.WriteString(fmt.Sprintf("- 目标字数约 %d 字（允许 ±15%%）。\n", spec.Words))
 	}
-	if spec.Tone != "" {
-		sb.WriteString(fmt.Sprintf("- 语气：%s。\n", spec.Tone))
-	}
-	if spec.Audience != "" {
-		sb.WriteString(fmt.Sprintf("- 受众：%s。\n", spec.Audience))
-	}
 	for _, c := range spec.Constraints {
 		sb.WriteString(fmt.Sprintf("- %s\n", c))
 	}
 	sb.WriteString("- 必须包含一级标题作为文章标题。\n")
-	sb.WriteString("- 开头给出 80~140 字的摘要（Digest），用段落呈现。\n")
 	if len(spec.Outline) > 0 {
-		sb.WriteString("- 按以下大纲组织内容：\n")
+		sb.WriteString("- 结合以下背景信息进行写作：\n")
 		for i, item := range spec.Outline {
 			sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, item))
 		}
@@ -58,7 +51,6 @@ func BuildRevisionPrompt(spec Spec, prev Draft, comment string, history []Turn) 
 	var sb strings.Builder
 	sb.WriteString("你是一名专业编辑，基于用户反馈对稿件做最小必要改动，保持 Markdown 结构。\n")
 	sb.WriteString("- 维持标题层级和列表格式。\n")
-	sb.WriteString("- 保持摘要位置（开头段落）。\n")
 	sb.WriteString("- 如果反馈无效或不合理，说明原因并保持原文。\n")
 	for _, c := range spec.Constraints {
 		sb.WriteString(fmt.Sprintf("- %s\n", c))

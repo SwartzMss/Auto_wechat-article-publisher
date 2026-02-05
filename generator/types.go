@@ -6,8 +6,6 @@ import "time"
 type Spec struct {
 	Topic       string
 	Outline     []string
-	Tone        string
-	Audience    string
 	Words       int
 	Constraints []string
 }

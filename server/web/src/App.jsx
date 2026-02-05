@@ -307,11 +307,11 @@ function App() {
               </div>
               <label>主题</label>
               <input value={spec.topic} onChange={e => setSpec({ ...spec, topic: e.target.value })} placeholder="例如：微信图文发布自动化实践" />
-              <label>大纲</label>
+              <label>背景信息</label>
               <textarea
                 value={spec.outline}
                 onChange={e => setSpec({ ...spec, outline: e.target.value })}
-                placeholder={`引言\n整体流程\n踩坑 & 经验`}
+                placeholder={`资料要点/链接/案例\n可多行，每行一条`}
               />
               <div className="inline-field">
                 <label>目标字数</label>
@@ -323,7 +323,7 @@ function App() {
                 />
               </div>
               <div className="constraints-toggle">
-                <label>额外约束</label>
+                <label>写作指南</label>
                 <button
                   type="button"
                   className="btn btn-ghost compact-btn"

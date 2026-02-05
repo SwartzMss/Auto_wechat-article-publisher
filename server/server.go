@@ -222,8 +222,6 @@ func (s *Server) staticHandler() http.Handler {
 type sessionCreateReq struct {
 	Topic       string   `json:"topic"`
 	Outline     []string `json:"outline"`
-	Tone        string   `json:"tone"`
-	Audience    string   `json:"audience"`
 	Words       int      `json:"words"`
 	Constraints []string `json:"constraints"`
 }
@@ -265,8 +263,6 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 	spec := generator.Spec{
 		Topic:       req.Topic,
 		Outline:     req.Outline,
-		Tone:        req.Tone,
-		Audience:    req.Audience,
 		Words:       req.Words,
 		Constraints: req.Constraints,
 	}
