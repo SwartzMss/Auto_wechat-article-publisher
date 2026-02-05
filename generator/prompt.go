@@ -84,6 +84,7 @@ func BuildInitialPrompt(spec Spec) Prompt {
 	if spec.Words > 0 {
 		sb.WriteString(fmt.Sprintf("- 目标字数约 %d 字（允许 ±15%%，不得超过 %d 字）。\n", spec.Words, int(float64(spec.Words)*1.2)))
 	}
+	sb.WriteString("- 每个段落前添加小标题（使用二级或三级标题）。\n")
 	styleKey := spec.Style
 	if styleKey == "" {
 		styleKey = "life-rational"
@@ -128,6 +129,7 @@ func BuildRevisionPrompt(spec Spec, prev Draft, comment string, history []Turn) 
 	sb.WriteString("你是一名专业编辑，基于用户反馈对稿件做最小必要改动，保持 Markdown 结构。\n")
 	sb.WriteString("- 维持标题层级和列表格式。\n")
 	sb.WriteString("- 如果反馈无效或不合理，说明原因并保持原文。\n")
+	sb.WriteString("- 每个段落前添加小标题（使用二级或三级标题）。\n")
 	if spec.Words > 0 {
 		sb.WriteString(fmt.Sprintf("- 目标字数约 %d 字（允许 ±15%%，不得超过 %d 字）。\n", spec.Words, int(float64(spec.Words)*1.2)))
 	}
