@@ -12,11 +12,6 @@ const defaultSpec = {
   style: 'life-rational',
 };
 
-const STYLE_PRESETS = {
-  'life-rational': `你是一名科普写作者，面向没有专业背景的普通读者。\n\n写作要求：\n- 风格：生活化、理性、克制\n- 语气：冷静、解释型，不煽动情绪\n- 不使用营销号语言（如“震惊”“你一定不知道”）\n- 不居高临下，不对读者进行道德评判\n- 用日常生活场景引出问题\n- 用简单的科学模型或研究结论进行解释\n- 避免过多专业术语，如必须出现请顺带解释\n\n文章结构建议：\n1. 一个真实生活场景或普遍困惑\n2. 人们常见的直觉理解\n3. 科学上的解释或研究发现\n4. 一个温和、开放的收束结论\n\n目标：\n让读者读完后觉得“原来是这样”，而不是“我被教育了”。`,
-  'warm-healing': `你是一名温和的科普写作者，擅长用科学解释人的情绪和行为。\n\n写作要求：\n- 风格：温和、治愈、有同理心\n- 语气：像一个理解人的朋友，而不是专家或老师\n- 允许情绪表达，但不过度煽情\n- 不指责、不批评、不下“你应该”的结论\n- 科学内容作为解释工具，而不是说服工具\n\n文章结构建议：\n1. 描述一种常见的情绪或困扰\n2. 明确告诉读者：这种状态并不罕见\n3. 用心理学或行为科学解释为什么会这样\n4. 给出一个宽松、非强制的理解视角\n\n目标：\n让读者读完后感觉“被理解”，而不是“被分析”。`,
-};
-
 function App() {
   const [spec, setSpec] = useState(defaultSpec);
   const [comment, setComment] = useState('');
@@ -35,19 +30,15 @@ function App() {
   const bodyInputRef = useRef(null);
   const heartbeatRef = useRef(null);
 
-  const payload = useMemo(() => {
-    const userConstraints = spec.constraints.split('\n').filter(Boolean);
-    const stylePrompt = STYLE_PRESETS[spec.style] || '';
-    const constraints = stylePrompt ? [stylePrompt, ...userConstraints] : userConstraints;
-    return {
-      topic: spec.topic.trim(),
-      outline: spec.outline.split('\n').filter(Boolean),
-      tone: spec.tone.trim(),
-      audience: spec.audience.trim(),
-      words: parseInt(spec.words, 10) || 0,
-      constraints,
-    };
-  }, [spec]);
+  const payload = useMemo(() => ({
+    topic: spec.topic.trim(),
+    outline: spec.outline.split('\n').filter(Boolean),
+    tone: spec.tone.trim(),
+    audience: spec.audience.trim(),
+    words: parseInt(spec.words, 10) || 0,
+    constraints: spec.constraints.split('\n').filter(Boolean),
+    style: spec.style,
+  }), [spec]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -343,6 +334,7 @@ function App() {
                 >
                   <option value="life-rational">生活化·理性</option>
                   <option value="warm-healing">温和·治愈</option>
+                  <option value="novelistic">小说式</option>
                 </select>
               </div>
               <div className="constraints-toggle">

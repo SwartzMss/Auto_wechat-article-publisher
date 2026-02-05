@@ -33,6 +33,80 @@ type Server struct {
 	uploadDir string
 }
 
+type stylePreset struct {
+	Key    string
+	Label  string
+	Prompt string
+}
+
+var stylePresets = map[string]stylePreset{
+	"life-rational": {
+		Key:   "life-rational",
+		Label: "生活化·理性",
+		Prompt: `你是一名科普写作者，面向没有专业背景的普通读者。
+
+写作要求：
+- 风格：生活化、理性、克制
+- 语气：冷静、解释型，不煽动情绪
+- 不使用营销号语言（如“震惊”“你一定不知道”）
+- 不居高临下，不对读者进行道德评判
+- 用日常生活场景引出问题
+- 用简单的科学模型或研究结论进行解释
+- 避免过多专业术语，如必须出现请顺带解释
+
+文章结构建议：
+1. 一个真实生活场景或普遍困惑
+2. 人们常见的直觉理解
+3. 科学上的解释或研究发现
+4. 一个温和、开放的收束结论
+
+目标：
+让读者读完后觉得“原来是这样”，而不是“我被教育了”。`,
+	},
+	"warm-healing": {
+		Key:   "warm-healing",
+		Label: "温和·治愈",
+		Prompt: `你是一名温和的科普写作者，擅长用科学解释人的情绪和行为。
+
+写作要求：
+- 风格：温和、治愈、有同理心
+- 语气：像一个理解人的朋友，而不是专家或老师
+- 允许情绪表达，但不过度煽情
+- 不指责、不批评、不下“你应该”的结论
+- 科学内容作为解释工具，而不是说服工具
+
+文章结构建议：
+1. 描述一种常见的情绪或困扰
+2. 明确告诉读者：这种状态并不罕见
+3. 用心理学或行为科学解释为什么会这样
+4. 给出一个宽松、非强制的理解视角
+
+目标：
+让读者读完后感觉“被理解”，而不是“被分析”。`,
+	},
+	"novelistic": {
+		Key:   "novelistic",
+		Label: "小说式",
+		Prompt: `你是一名科普写作者，使用“轻小说式叙事”来解释科学现象。
+
+写作方式：
+- 以一个非常日常的生活场景开头
+- 使用第三人称或模糊第一人称
+- 场景真实、克制，不追求戏剧冲突
+- 不写完整故事，只写一个生活切片
+- 人物不需要名字和详细背景
+
+科普要求：
+- 小说只是引子，核心目的是解释科学原理
+- 在中段自然引入心理学 / 认知科学解释
+- 避免学术语言，用生活化比喻说明机制
+- 不下结论式判断，不进行价值说教
+
+文章目标：
+让读者在“读故事”的过程中，理解一个科学概念。`,
+	},
+}
+
 type sessionStore struct {
 	mu       sync.Mutex
 	sessions map[string]*sessionEntry
@@ -217,6 +291,20 @@ func (s *Server) staticHandler() http.Handler {
 	})
 }
 
+func mergeStyleConstraints(style string, userConstraints []string) []string {
+	preset, ok := stylePresets[style]
+	if !ok {
+		preset = stylePresets["life-rational"]
+	}
+	res := make([]string, 0, len(userConstraints)+1)
+	prompt := strings.TrimSpace(preset.Prompt)
+	if prompt != "" {
+		res = append(res, prompt)
+	}
+	res = append(res, userConstraints...)
+	return res
+}
+
 // --- Handlers ---
 
 type sessionCreateReq struct {
@@ -224,6 +312,7 @@ type sessionCreateReq struct {
 	Outline     []string `json:"outline"`
 	Words       int      `json:"words"`
 	Constraints []string `json:"constraints"`
+	Style       string   `json:"style"`
 }
 
 type sessionResp struct {
@@ -264,7 +353,7 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 		Topic:       req.Topic,
 		Outline:     req.Outline,
 		Words:       req.Words,
-		Constraints: req.Constraints,
+		Constraints: mergeStyleConstraints(req.Style, req.Constraints),
 	}
 	id := newSessionID()
 	sess := generator.NewSession(id, spec, s.genAgent)
