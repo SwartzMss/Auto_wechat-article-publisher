@@ -451,6 +451,10 @@ func logMiddleware(next http.Handler) http.Handler {
 		if path == "" {
 			path = "/"
 		}
+		if strings.HasPrefix(path, "/api/heartbeat/") && rec.status == http.StatusNoContent {
+			// 正常心跳不打印，避免刷日志
+			return
+		}
 		log.Printf("[HTTP] %s %s -> %d (%dB) in %v", r.Method, path, rec.status, rec.bytes, time.Since(start))
 	})
 }
