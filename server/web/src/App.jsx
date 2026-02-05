@@ -364,7 +364,7 @@ function App() {
               )}
               <div className="actions spaced">
                 <button className="btn btn-primary" onClick={() => handleSubmit(true)} disabled={loading}>
-                  重新生成首稿
+                  生成首稿
                 </button>
                 <button
                   className="btn btn-ghost"
