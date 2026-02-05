@@ -76,20 +76,6 @@ var stylePresets = map[string]string{
 让读者在“读故事”的过程中，理解一个科学概念。`,
 }
 
-func mergedConstraints(spec Spec) []string {
-	styleKey := spec.Style
-	if styleKey == "" {
-		styleKey = "life-rational"
-	}
-	stylePrompt := strings.TrimSpace(stylePresets[styleKey])
-	res := make([]string, 0, len(spec.Constraints)+1)
-	if stylePrompt != "" {
-		res = append(res, stylePrompt)
-	}
-	res = append(res, spec.Constraints...)
-	return res
-}
-
 // BuildInitialPrompt 生成首稿提示词。
 func BuildInitialPrompt(spec Spec) Prompt {
 	var sb strings.Builder
@@ -98,11 +84,26 @@ func BuildInitialPrompt(spec Spec) Prompt {
 	if spec.Words > 0 {
 		sb.WriteString(fmt.Sprintf("- 目标字数约 %d 字（允许 ±15%%）。\n", spec.Words))
 	}
-	cons := mergedConstraints(spec)
-	sb.WriteString(fmt.Sprintf("- 写作风格：%s\n", spec.Style))
-	for _, c := range cons {
-		sb.WriteString(fmt.Sprintf("- %s\n", c))
+	styleKey := spec.Style
+	if styleKey == "" {
+		styleKey = "life-rational"
 	}
+	sb.WriteString(fmt.Sprintf("- 写作风格：%s\n", styleKey))
+
+	stylePrompt := strings.TrimSpace(stylePresets[styleKey])
+	if stylePrompt != "" {
+		sb.WriteString("风格预设：\n")
+		sb.WriteString(stylePrompt)
+		sb.WriteString("\n")
+	}
+
+	if len(spec.Constraints) > 0 {
+		sb.WriteString("额外约束：\n")
+		for _, c := range spec.Constraints {
+			sb.WriteString(fmt.Sprintf("- %s\n", c))
+		}
+	}
+
 	sb.WriteString("- 必须包含一级标题作为文章标题。\n")
 	if len(spec.Outline) > 0 {
 		sb.WriteString("- 结合以下背景信息进行写作：\n")
@@ -114,7 +115,7 @@ func BuildInitialPrompt(spec Spec) Prompt {
 
 	user := fmt.Sprintf("主题：%s\n请输出符合上述要求的完整 Markdown。", spec.Topic)
 	system := sb.String()
-	log.Printf("[Prompt][initial] style=%s constraints=%d\nsystem:\n%s\nuser:\n%s\n", spec.Style, len(cons), system, user)
+	log.Printf("[Prompt][initial] style=%s constraints=%d\nsystem:\n%s\nuser:\n%s\n", styleKey, len(spec.Constraints), system, user)
 
 	return Prompt{
 		System:  system,
@@ -129,10 +130,23 @@ func BuildRevisionPrompt(spec Spec, prev Draft, comment string, history []Turn) 
 	sb.WriteString("你是一名专业编辑，基于用户反馈对稿件做最小必要改动，保持 Markdown 结构。\n")
 	sb.WriteString("- 维持标题层级和列表格式。\n")
 	sb.WriteString("- 如果反馈无效或不合理，说明原因并保持原文。\n")
-	cons := mergedConstraints(spec)
-	sb.WriteString(fmt.Sprintf("- 写作风格：%s\n", spec.Style))
-	for _, c := range cons {
-		sb.WriteString(fmt.Sprintf("- %s\n", c))
+	styleKey := spec.Style
+	if styleKey == "" {
+		styleKey = "life-rational"
+	}
+	sb.WriteString(fmt.Sprintf("- 写作风格：%s\n", styleKey))
+
+	stylePrompt := strings.TrimSpace(stylePresets[styleKey])
+	if stylePrompt != "" {
+		sb.WriteString("风格预设：\n")
+		sb.WriteString(stylePrompt)
+		sb.WriteString("\n")
+	}
+	if len(spec.Constraints) > 0 {
+		sb.WriteString("额外约束：\n")
+		for _, c := range spec.Constraints {
+			sb.WriteString(fmt.Sprintf("- %s\n", c))
+		}
 	}
 
 	user := fmt.Sprintf("当前稿件：\n%s\n\n用户反馈：%s\n请输出修订后的完整 Markdown。", prev.Markdown, comment)
