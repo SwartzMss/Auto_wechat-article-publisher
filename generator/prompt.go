@@ -110,12 +110,14 @@ func BuildInitialPrompt(spec Spec) Prompt {
 			sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, item))
 		}
 	}
+	sb.WriteString("请严格遵守以上要求和 Markdown 结构，禁止额外说明。\n")
 
 	user := fmt.Sprintf("主题：%s\n请输出符合上述要求的完整 Markdown。", spec.Topic)
-	log.Printf("[Prompt][initial] style=%s constraints=%d\nsystem:\n%s\nuser:\n%s\n", spec.Style, len(cons), sb.String(), user)
+	system := sb.String()
+	log.Printf("[Prompt][initial] style=%s constraints=%d\nsystem:\n%s\nuser:\n%s\n", spec.Style, len(cons), system, user)
 
 	return Prompt{
-		System:  "严守 Markdown 结构，禁止输出额外说明。",
+		System:  system,
 		User:    user,
 		History: nil,
 	}
