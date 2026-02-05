@@ -41,6 +41,14 @@ function App() {
   }), [spec]);
 
   const handleSubmit = async (forceNew = false) => {
+    if (forceNew && sessionId) {
+      await deleteSession();
+      setSessionId(null);
+      setHistory([]);
+      setDraft({ markdown: '' });
+      setCover({ path: '', url: '', filename: '' });
+      setBodyImages([]);
+    }
     setLoading(true);
     const isNew = forceNew || !sessionId;
     setStatus(isNew ? '生成中...' : '修订中...');
