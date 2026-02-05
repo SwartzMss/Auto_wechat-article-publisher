@@ -8,6 +8,7 @@ type Spec struct {
 	Outline     []string
 	Words       int
 	Constraints []string
+	Style       string
 }
 
 // Draft is the模型产出的稿件（Markdown 形式）。
