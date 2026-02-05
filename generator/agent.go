@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"log"
 )
 
 // Agent 负责根据 Spec 和历史/反馈生成或修订稿件。
@@ -25,6 +26,8 @@ func (a *Agent) Generate(ctx context.Context, spec Spec, prevDraft *Draft, histo
 	} else {
 		prompt = BuildRevisionPrompt(spec, *prevDraft, comment, history)
 	}
+
+	log.Printf("[LLM] system:\n%s\nuser:\n%s\nhistory len=%d\n", prompt.System, prompt.User, len(prompt.History))
 
 	raw, err := a.llm.Complete(ctx, prompt)
 	if err != nil {
