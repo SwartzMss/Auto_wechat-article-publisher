@@ -69,6 +69,10 @@ function App() {
       setStatus('请先生成稿件');
       return;
     }
+    if (!cover.path) {
+      setStatus('请先上传封面，再发布');
+      return;
+    }
     setPublishing(true);
     setStatus('发布中...');
     const res = await fetch('/api/publish', {
