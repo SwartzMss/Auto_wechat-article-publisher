@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -109,6 +110,7 @@ func BuildInitialPrompt(spec Spec) Prompt {
 	}
 
 	user := fmt.Sprintf("主题：%s\n请输出符合上述要求的完整 Markdown。", spec.Topic)
+	log.Printf("[Prompt][initial] system:\n%s\nuser:\n%s\n", sb.String(), user)
 
 	return Prompt{
 		System:  "严守 Markdown 结构，禁止输出额外说明。",
