@@ -385,12 +385,8 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 	// Resolve cover path (required by WeChat). Use provided path or fallback to samples/cover.jpg if exists.
 	coverPath := strings.TrimSpace(req.CoverPath)
 	if coverPath == "" {
-		if _, err := os.Stat("samples/cover.jpg"); err == nil {
-			coverPath = "samples/cover.jpg"
-		} else {
-			http.Error(w, "cover_path required", http.StatusBadRequest)
-			return
-		}
+		http.Error(w, "cover_path required", http.StatusBadRequest)
+		return
 	}
 	if _, err := os.Stat(coverPath); err != nil {
 		http.Error(w, "cover_path not found: "+err.Error(), http.StatusBadRequest)
