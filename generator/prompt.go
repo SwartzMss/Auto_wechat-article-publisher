@@ -96,7 +96,7 @@ func BuildInitialPrompt(spec Spec) Prompt {
 	}
 
 	if len(spec.Constraints) > 0 {
-		sb.WriteString("额外约束：\n")
+		sb.WriteString("写作指南：\n")
 		for _, c := range spec.Constraints {
 			sb.WriteString(fmt.Sprintf("- %s\n", c))
 		}
@@ -139,7 +139,7 @@ func BuildRevisionPrompt(spec Spec, prev Draft, comment string, history []Turn) 
 		sb.WriteString("\n")
 	}
 	if len(spec.Constraints) > 0 {
-		sb.WriteString("额外约束：\n")
+		sb.WriteString("写作指南：\n")
 		for _, c := range spec.Constraints {
 			sb.WriteString(fmt.Sprintf("- %s\n", c))
 		}
