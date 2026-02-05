@@ -23,6 +23,7 @@ function App() {
   const [cover, setCover] = useState({ path: '', url: '', filename: '' });
   const [bodyImages, setBodyImages] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [showConstraints, setShowConstraints] = useState(false);
 
   const coverInputRef = useRef(null);
   const bodyInputRef = useRef(null);
@@ -211,11 +212,12 @@ function App() {
       digest: rawDraft.digest || rawDraft.Digest || '',
     };
     const normalizedHistory = (data.history || []).map((h) => {
-      const summary = h.summary || h.Summary || '';
-      const friendly = summary.toLowerCase().includes('initial') ? '首次生成' : summary;
+      const baseSummary = h.summary || h.Summary || '';
+      const friendly = baseSummary.toLowerCase().includes('initial') ? '首次生成' : baseSummary;
+      const baseComment = h.comment || h.Comment || '';
       return {
-        comment: h.comment || h.Comment || h.summary || h.Summary || '',
-        summary: friendly,
+        comment: baseComment || friendly,
+        summary: friendly || baseSummary,
         created_at: h.created_at || h.CreatedAt || '',
       };
     });
@@ -268,6 +270,9 @@ function App() {
     );
   });
 
+  const canUploadCover = !!sessionId && !uploading;
+  const coverHint = sessionId ? '支持 JPG / PNG，点击选择' : '需先生成草稿再上传';
+
   return (
     <div className="page">
       <div className="aurora aurora-1" />
@@ -279,11 +284,11 @@ function App() {
           <div className="chips">
             <span>主题塑形</span>
             <span>自动修订</span>
-            <span>Markdown 一键复制</span>
+            <span>一键发布</span>
           </div>
         </header>
 
-                <main className="grid">
+        <main className="grid">
           {/* 左列：状态/发布 + 灵感设定 */}
           <div className="col-4 stacked-col">
             <section className="card card-ghost status-card">
@@ -293,7 +298,6 @@ function App() {
                   <button className="btn btn-secondary" onClick={handlePublish} disabled={!draft.markdown || publishing || uploading}>发布到草稿箱</button>
                 </div>
               </div>
-              <div className="meta">状态与发布入口；错误简略显示，悬停可看完整信息。</div>
             </section>
 
             <section className="card card-solid">
@@ -303,14 +307,38 @@ function App() {
               </div>
               <label>主题</label>
               <input value={spec.topic} onChange={e => setSpec({ ...spec, topic: e.target.value })} placeholder="例如：微信图文发布自动化实践" />
-              <label>大纲（每行一条，选填）</label>
-              <textarea value={spec.outline} onChange={e => setSpec({ ...spec, outline: e.target.value })} placeholder={'引言\\n整体流程\\n踩坑 & 经验'} />
-              <label>目标字数</label>
-              <div className="actions stacked">
-                <input className="compact" value={spec.words} onChange={e => setSpec({ ...spec, words: e.target.value })} placeholder="如 1200" />
+              <label>大纲</label>
+              <textarea
+                value={spec.outline}
+                onChange={e => setSpec({ ...spec, outline: e.target.value })}
+                placeholder={`引言\n整体流程\n踩坑 & 经验`}
+              />
+              <div className="inline-field">
+                <label>目标字数</label>
+                <input
+                  className="compact"
+                  value={spec.words}
+                  onChange={e => setSpec({ ...spec, words: e.target.value })}
+                  placeholder="如 1200"
+                />
               </div>
-              <label>额外约束（每行一条）</label>
-              <textarea value={spec.constraints} onChange={e => setSpec({ ...spec, constraints: e.target.value })} placeholder={'禁止使用第一人称\\n每节加小结'} />
+              <div className="constraints-toggle">
+                <label>额外约束</label>
+                <button
+                  type="button"
+                  className="btn btn-ghost compact-btn"
+                  onClick={() => setShowConstraints((v) => !v)}
+                >
+                  {showConstraints ? '收起' : '添加'}
+                </button>
+              </div>
+              {showConstraints && (
+                <textarea
+                  value={spec.constraints}
+                  onChange={e => setSpec({ ...spec, constraints: e.target.value })}
+                  placeholder={`禁止使用第一人称\n每节加小结`}
+                />
+              )}
               <div className="actions spaced">
                 <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
                   {sessionId ? '基于评论更新' : '生成首稿'}
@@ -367,7 +395,11 @@ function App() {
                   onDrop={(e) => {
                     e.preventDefault();
                     const snippet = e.dataTransfer.getData('text/plain');
-                    if (snippet) insertSnippet(snippet);
+                    if (snippet) {
+                      // 插入前先聚焦编辑器，确保落点以当前光标为准
+                      editorRef.current?.focus();
+                      insertSnippet(snippet);
+                    }
                   }}
                   title="可拖拽图片插入；精确位置请在上方文本框定位后插入"
                   dangerouslySetInnerHTML={{ __html: previewHTML }}
@@ -401,7 +433,16 @@ function App() {
                     <span className="dot" />
                     封面图
                   </div>
-                  <div className="upload-tile card-click" onClick={() => coverInputRef.current?.click()}>
+                  <div
+                    className={`upload-tile card-click ${canUploadCover ? '' : 'disabled'}`}
+                    onClick={() => {
+                      if (canUploadCover) {
+                        coverInputRef.current?.click();
+                      } else {
+                        setStatus('请先生成草稿再上传封面');
+                      }
+                    }}
+                  >
                     {cover.url ? (
                       <>
                         <img src={cover.url} alt="cover" className="cover-preview" />
@@ -414,11 +455,11 @@ function App() {
                       <div className="upload-empty">
                         <div className="empty-icon">🖼️</div>
                         <div className="empty-title">上传封面</div>
-                        <div className="upload-hint">支持 JPG / PNG，点击选择</div>
+                        <div className="upload-hint">{coverHint}</div>
                       </div>
                     )}
                   </div>
-                  <input ref={coverInputRef} type="file" accept="image/*" onChange={handleCoverSelect} hidden />
+                  <input ref={coverInputRef} type="file" accept="image/*" onChange={handleCoverSelect} hidden disabled={!canUploadCover} />
                 </div>
 
                 <div className="media-card">
@@ -428,7 +469,6 @@ function App() {
                   </div>
                   <div className="actions spaced">
                     <button className="btn btn-primary" onClick={() => bodyInputRef.current?.click()} disabled={!sessionId || uploading}>上传正文图片</button>
-                    <div className="meta">{sessionId ? '上传后可拖拽或一键插入' : '需先生成草稿再上传'}</div>
                   </div>
                   <input ref={bodyInputRef} type="file" accept="image/*" multiple hidden onChange={handleBodySelect} />
                   {bodyImages.length ? (
@@ -455,7 +495,7 @@ function App() {
                       ))}
                     </div>
                   ) : (
-                    <div className="empty-inline">{sessionId ? '还没有正文图片' : '生成草稿后再上传图片'}</div>
+                    <div className="empty-inline">还没有正文图片</div>
                   )}
                 </div>
               </div>

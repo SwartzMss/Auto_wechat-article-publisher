@@ -28,7 +28,7 @@ body { margin: 0; padding: 0; min-height: 100vh; background: transparent; }
 .aurora-2 { background: radial-gradient(circle at 80% 20%, rgba(91, 195, 255, 0.4), transparent 50%); }
 
 .container {
-  max-width: 1152px; /* tailwind max-w-6xl */
+  max-width: 1320px; /* slightly wider than max-w-6xl */
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -96,6 +96,29 @@ body { margin: 0; padding: 0; min-height: 100vh; background: transparent; }
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.inline-field {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.inline-field label {
+  white-space: nowrap;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.inline-field input.compact {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.constraints-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .card {
@@ -274,6 +297,10 @@ textarea { min-height: 132px; resize: vertical; }
   line-height: 1.7;
   color: #f4f6ff;
 }
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+}
 .markdown-body h1, .markdown-body h2, .markdown-body h3 { margin-top: 1.2em; color: #fefbff; }
 .markdown-body pre {
   background: #0d1117;
@@ -330,6 +357,11 @@ textarea { min-height: 132px; resize: vertical; }
   justify-content: flex-start;
   background: rgba(255, 255, 255, 0.02);
   transition: border 0.2s ease, background 0.2s ease;
+}
+.upload-tile.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  border-style: solid;
 }
 .upload-tile:hover { border-color: rgba(255, 255, 255, 0.6); background: rgba(255,255,255,0.04); }
 .cover-preview {

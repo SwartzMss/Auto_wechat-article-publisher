@@ -24,12 +24,12 @@ import (
 var embeddedStatic embed.FS
 
 type Server struct {
-	genAgent *generator.Agent
-	pubCfg   publisher.Config
-	pub      *publisher.Publisher
-	pubMu    sync.Mutex
-	store    *sessionStore
-	staticFS http.Handler
+	genAgent  *generator.Agent
+	pubCfg    publisher.Config
+	pub       *publisher.Publisher
+	pubMu     sync.Mutex
+	store     *sessionStore
+	staticFS  http.Handler
 	uploadDir string
 }
 
@@ -179,11 +179,11 @@ func New(genAgent *generator.Agent, pubCfg publisher.Config) (*Server, error) {
 	}
 
 	return &Server{
-		genAgent: genAgent,
-		pubCfg:   pubCfg,
-		pub:      nil,
-		store:    store,
-		staticFS: http.FileServer(http.FS(sub)),
+		genAgent:  genAgent,
+		pubCfg:    pubCfg,
+		pub:       nil,
+		store:     store,
+		staticFS:  http.FileServer(http.FS(sub)),
 		uploadDir: uploadDir,
 	}, nil
 }
@@ -520,6 +520,18 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "parse form: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Require a live session so uploaded files can be tracked and cleaned up with the session.
+	sessID := strings.TrimSpace(r.FormValue("session_id"))
+	if sessID == "" {
+		http.Error(w, "session_id required; generate draft first", http.StatusBadRequest)
+		return
+	}
+	if _, ok := s.store.get(sessID); !ok {
+		http.Error(w, "session not found or expired; regenerate draft", http.StatusNotFound)
+		return
+	}
+
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, "file is required: "+err.Error(), http.StatusBadRequest)
@@ -527,7 +539,6 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	sessID := strings.TrimSpace(r.FormValue("session_id"))
 	usage := strings.TrimSpace(r.FormValue("usage"))
 	orig := sanitizeFilename(header.Filename)
 	if orig == "" {
