@@ -378,6 +378,15 @@ function App() {
               </div>
               <label>评论 / 追加要求</label>
               <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="例：加强案例部分，补充图片占位说明" />
+              <div className="actions spaced">
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                >
+                  提交评论修订
+                </button>
+              </div>
             </section>
           </div>
 
