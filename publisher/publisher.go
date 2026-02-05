@@ -75,6 +75,32 @@ type addDraftResp struct {
 	ErrMsg  string `json:"errmsg"`
 }
 
+// wechatAPIError carries WeChat error codes for token retry decisions.
+type wechatAPIError struct {
+	Code int
+	Msg  string
+}
+
+func (e *wechatAPIError) Error() string {
+	return fmt.Sprintf("%d %s", e.Code, e.Msg)
+}
+
+func (e *wechatAPIError) tokenExpired() bool {
+	return isTokenExpiredCode(e.Code)
+}
+
+// isTokenExpiredCode returns true for access_token related codes.
+func isTokenExpiredCode(code int) bool {
+	switch code {
+	case 42001, // access_token expired
+			40001, // invalid credential, token likely expired
+			40014: // invalid access_token
+		return true
+	default:
+		return false
+	}
+}
+
 type article struct {
 	Title              string `json:"title"`
 	Author             string `json:"author"`
@@ -98,7 +124,7 @@ type Publisher struct {
 	logger      *log.Logger
 }
 
-// New creates a Publisher and fetches the access token immediately so it can be reused.
+// New creates a Publisher; access_token is fetched per publish for freshness.
 func New(cfg Config, client *http.Client, verbose bool, logger *log.Logger) (*Publisher, error) {
 	if cfg.AppID == "" || cfg.AppSecret == "" {
 		return nil, errors.New("config must include app_id and app_secret")
@@ -110,15 +136,10 @@ func New(cfg Config, client *http.Client, verbose bool, logger *log.Logger) (*Pu
 		logger = log.Default()
 	}
 
-	accessToken, err := getAccessToken(client, cfg)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Publisher{
 		cfg:         cfg,
 		client:      client,
-		accessToken: accessToken,
+		accessToken: "",
 		verbose:     verbose,
 		logger:      logger,
 	}, nil
@@ -129,6 +150,22 @@ func (p *Publisher) infof(format string, args ...interface{}) {
 		return
 	}
 	p.logger.Printf("[INFO] "+format, args...)
+}
+
+// withTokenRefreshString executes a WeChat API call that returns a string result.
+// If it receives an access token related error, it refreshes the token once and retries.
+func (p *Publisher) withTokenRefreshString(ctx context.Context, fn func(token string) (string, error)) (string, error) {
+	res, err := fn(p.accessToken)
+	if err == nil {
+		return res, nil
+	}
+	if apiErr, ok := err.(*wechatAPIError); ok && apiErr.tokenExpired() {
+		if refreshErr := p.refreshAccessToken(ctx); refreshErr != nil {
+			return "", fmt.Errorf("token expired (%v) and refresh failed: %w", apiErr, refreshErr)
+		}
+		return fn(p.accessToken)
+	}
+	return "", err
 }
 
 // LoadConfig reads JSON config from disk.
@@ -153,6 +190,13 @@ func (p *Publisher) PublishDraft(ctx context.Context, params PublishParams) (str
 		return "", errors.New("markdown path, title, and cover path are required")
 	}
 
+	token, err := getAccessToken(p.client, p.cfg)
+	if err != nil {
+		return "", fmt.Errorf("failed to init access_token: %w", err)
+	}
+	p.accessToken = token
+	p.infof("Fetched fresh access_token for publish")
+
 	p.logger.Printf("[publish] start title=%q md=%s cover=%s", params.Title, params.MarkdownPath, params.CoverPath)
 
 	mdBytes, err := os.ReadFile(params.MarkdownPath)
@@ -163,7 +207,9 @@ func (p *Publisher) PublishDraft(ctx context.Context, params PublishParams) (str
 	// 摘要不再使用，直接发送空字符串，避免长度限制错误。
 	p.infof("Digest skipped; sending empty digest to WeChat")
 
-	mdWithImages, err := replaceMarkdownImages(ctx, p.client, p.accessToken, string(mdBytes), params.MarkdownPath)
+	mdWithImages, err := p.withTokenRefreshString(ctx, func(token string) (string, error) {
+		return replaceMarkdownImages(ctx, p.client, token, string(mdBytes), params.MarkdownPath)
+	})
 	if err != nil {
 		return "", err
 	}
@@ -178,7 +224,9 @@ func (p *Publisher) PublishDraft(ctx context.Context, params PublishParams) (str
 	contentHTML = normalizeForWeChat(contentHTML)
 	p.infof("Normalized HTML for WeChat compatibility")
 
-	thumbMediaID, err := uploadImage(ctx, p.client, p.accessToken, params.CoverPath)
+	thumbMediaID, err := p.withTokenRefreshString(ctx, func(token string) (string, error) {
+		return uploadImage(ctx, p.client, token, params.CoverPath)
+	})
 	if err != nil {
 		return "", err
 	}
@@ -196,7 +244,9 @@ func (p *Publisher) PublishDraft(ctx context.Context, params PublishParams) (str
 
 	p.logger.Printf("[publish] addDraft title=%q cover_media=%s", art.Title, art.ThumbMediaID)
 
-	mediaID, err := addDraft(ctx, p.client, p.accessToken, art)
+	mediaID, err := p.withTokenRefreshString(ctx, func(token string) (string, error) {
+		return addDraft(ctx, p.client, token, art)
+	})
 	if err != nil {
 		p.logger.Printf("[publish] addDraft failed: %v", err)
 		return "", err
@@ -235,6 +285,16 @@ func getAccessToken(client *http.Client, cfg Config) (string, error) {
 	return data.AccessToken, nil
 }
 
+// refreshAccessToken retrieves a new token and updates the publisher state.
+func (p *Publisher) refreshAccessToken(ctx context.Context) error {
+	newToken, err := getAccessToken(p.client, p.cfg)
+	if err != nil {
+		return err
+	}
+	p.accessToken = newToken
+	return nil
+}
+
 func uploadImage(ctx context.Context, client *http.Client, accessToken, imagePath string) (string, error) {
 	file, err := os.Open(imagePath)
 	if err != nil {
@@ -255,10 +315,10 @@ func uploadImage(ctx context.Context, client *http.Client, accessToken, imagePat
 		return "", err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", uploadImageURL, &body)
-	if err != nil {
-		return "", err
-	}
+    req, err := http.NewRequestWithContext(ctx, "POST", uploadImageURL, &body)
+    if err != nil {
+        return "", err
+    }
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	q := req.URL.Query()
 	q.Set("access_token", accessToken)
@@ -276,7 +336,7 @@ func uploadImage(ctx context.Context, client *http.Client, accessToken, imagePat
 		return "", err
 	}
 	if data.MediaID == "" {
-		return "", fmt.Errorf("failed to upload image: %d %s", data.ErrCode, data.ErrMsg)
+		return "", &wechatAPIError{Code: data.ErrCode, Msg: data.ErrMsg}
 	}
 	return data.MediaID, nil
 }
@@ -321,7 +381,7 @@ func uploadContentImage(ctx context.Context, client *http.Client, accessToken, i
 		return "", err
 	}
 	if data.URL == "" {
-		return "", fmt.Errorf("failed to upload content image: %d %s", data.ErrCode, data.ErrMsg)
+		return "", &wechatAPIError{Code: data.ErrCode, Msg: data.ErrMsg}
 	}
 	return data.URL, nil
 }
@@ -478,7 +538,7 @@ func addDraft(ctx context.Context, client *http.Client, accessToken string, art 
 		return "", err
 	}
 	if data.MediaID == "" {
-		return "", fmt.Errorf("failed to add draft: %d %s", data.ErrCode, data.ErrMsg)
+		return "", &wechatAPIError{Code: data.ErrCode, Msg: data.ErrMsg}
 	}
 	return data.MediaID, nil
 }
